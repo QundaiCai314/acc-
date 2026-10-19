@@ -10,8 +10,9 @@ import httpx
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app import vision
 from app.spatial import distance_m
-from app.spatial_models import Coordinates
+from app.spatial_models import Coordinates, QueryIntent
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +82,9 @@ class SpatialTests(unittest.TestCase):
         r = self.client.post(f'/spatial/annotations/{annotation_id}/withdraw',
                              json={'reviewer': 'test-reviewer', 'note': '测试撤回'})
         self.assertEqual(r.status_code, 201)
+        r = self.client.post(f'/spatial/annotations/{annotation_id}/withdraw',
+                             json={'reviewer': 'test-reviewer', 'note': 'repeat'})
+        self.assertEqual(r.status_code, 409)
         self.assertEqual(self.ask()['citations'], [])
         with TestClient(create_app(self.db)) as reopened:
             records = reopened.get(f'/spatial/datasets/{self.dataset_id}/annotations').json()['annotations']
@@ -185,6 +189,80 @@ class SpatialTests(unittest.TestCase):
         self.assertEqual(r.status_code, 503)
         records = self.client.get(f'/spatial/datasets/{self.dataset_id}/annotations').json()['annotations']
         self.assertEqual(len(records), 1)
+
+    def test_natural_question_uses_reviewed_spatial_evidence(self):
+        self.review(self.propose())
+        intent = QueryIntent(center_entity_id='building-a', radius_m=100, kind='entrance',
+                             observation='obstacle_visible', max_age_hours=None)
+        with patch('app.spatial.vision.interpret_question', return_value=(intent, {})):
+            response = self.client.post(f'/spatial/datasets/{self.dataset_id}/ask',
+                                        json={'question': 'A 楼 100 米内哪些入口有障碍？'})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result['status'], 'answered')
+        self.assertEqual(result['interpreted_query']['max_age_hours'], 24)
+        run = self.client.get('/spatial/runs/' + result['run_id']).json()
+        self.assertEqual(run['interpreted_query']['center_entity_id'], 'building-a')
+        self.assertEqual(result['evidence']['status'], 'evidence_found')
+        self.assertEqual(len(result['evidence']['citations']), 1)
+        self.assertEqual(result['evidence']['citations'][0]['annotation_id'],
+                         self.client.get(f'/spatial/datasets/{self.dataset_id}/annotations').json()['annotations'][0]['id'])
+
+    def test_natural_question_clarifies_without_retrieval(self):
+        for intent in (
+            QueryIntent(center_entity_id=None, radius_m=100, kind='entrance',
+                        observation='obstacle_visible', max_age_hours=None),
+            QueryIntent(center_entity_id='building-a', radius_m=None, kind='entrance',
+                        observation='obstacle_visible', max_age_hours=None),
+            QueryIntent(center_entity_id='entrance-unlocated', radius_m=100, kind='entrance',
+                        observation='obstacle_visible', max_age_hours=None),
+        ):
+            with patch('app.spatial.vision.interpret_question', return_value=(intent, {})), \
+                    patch('app.spatial.query') as retrieve:
+                response = self.client.post(f'/spatial/datasets/{self.dataset_id}/ask',
+                                            json={'question': '附近情况怎么样？'})
+            self.assertEqual(response.status_code, 200, response.text)
+            self.assertEqual(response.json()['status'], 'clarification_needed')
+            self.assertIsNone(response.json()['evidence'])
+            retrieve.assert_not_called()
+
+    def test_natural_question_gateway_contract(self):
+        url = f'/spatial/datasets/{self.dataset_id}/ask'
+        original_client = httpx.Client
+        env = {'VISION_CHAT_URL': 'https://vision.invalid/v1/chat/completions',
+               'VISION_API_KEY': 'test-secret', 'VISION_MODEL': 'test-chat'}
+        intent = {'center_entity_id': 'building-a', 'radius_m': 100, 'kind': 'entrance',
+                  'observation': 'obstacle_visible', 'max_age_hours': None}
+        seen = []
+
+        def gateway(request):
+            seen.append(json.loads(request.content))
+            return httpx.Response(200, json={'choices': [{'message': {
+                'content': '```json\n' + json.dumps(intent) + '\n```'}}]})
+
+        with patch.dict(os.environ, env), patch('app.vision.httpx.Client', side_effect=lambda **kwargs:
+                original_client(transport=httpx.MockTransport(gateway), **kwargs)):
+            r = self.client.post(url, json={'question': 'A ? 100 ??????????????????????'})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()['status'], 'answered')
+        self.assertEqual(r.json()['evidence']['citations'], [])
+        self.assertEqual(seen[0]['messages'][1]['role'], 'user')
+        self.assertNotIn('test-secret', self.client.get('/spatial/runs/' + r.json()['run_id']).text)
+        bad = json.dumps({**intent, 'center_entity_id': 'invented'})
+        with patch.dict(os.environ, env), patch('app.vision.httpx.Client', side_effect=lambda **kwargs:
+                original_client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json={
+                    'choices': [{'message': {'content': bad}}]})), **kwargs)):
+            r = self.client.post(url, json={'question': 'A ????'})
+        self.assertEqual(r.status_code, 502)
+
+    def test_natural_question_model_errors_are_explicit(self):
+        url = f'/spatial/datasets/{self.dataset_id}/ask'
+        with patch('app.spatial.vision.interpret_question', side_effect=vision.VisionUnavailable('Configure model')):
+            self.assertEqual(self.client.post(url, json={'question': 'A 楼附近？'}).status_code, 503)
+        with patch('app.spatial.vision.interpret_question', side_effect=vision.VisionFailure('Invalid intent')):
+            response = self.client.post(url, json={'question': 'A 楼附近？'})
+        self.assertEqual(response.status_code, 502)
+        self.assertNotIn('secret', response.text)
 
 
 if __name__ == '__main__':

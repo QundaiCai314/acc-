@@ -10,8 +10,8 @@ from fastapi.responses import Response
 
 from . import vision
 from .spatial_models import (
-    Annotation, Dataset, ImageInput, ImportedProposal, Retraction, Review,
-    SpatialAnswer, SpatialQuery,
+    Annotation, Dataset, ImageInput, ImportedProposal, NaturalAnswer, NaturalQuestion,
+    QueryIntent, Retraction, Review, SpatialAnswer, SpatialQuery,
 )
 
 
@@ -152,6 +152,9 @@ def withdraw_annotation(annotation_id: UUID, payload: Retraction, request: Reque
     review = store.decision(str(annotation_id))
     if review is None or review['action'] != 'approve':
         raise HTTPException(409, 'Only approved annotations can be withdrawn')
+    if any(r['annotation_id'] == str(annotation_id)
+           for r in store.list_records('annotation_retraction', record['dataset_id'])):
+        raise HTTPException(409, 'Annotation already withdrawn')
     return store.save('annotation_retraction', {
         **payload.model_dump(), 'annotation_id': str(annotation_id), 'dataset_id': record['dataset_id'],
     })
@@ -216,3 +219,34 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
                         '只检索当前仍有效的人工审核结果；as_of 限制图片时间，不是历史审核状态回放',
                         '置信度是模型或录入者自报，未经过概率校准；人工审核也不保证现场事实无误'],
     }
+
+
+@router.post('/datasets/{dataset_id}/ask', response_model=NaturalAnswer)
+def ask(dataset_id: UUID, payload: NaturalQuestion, request: Request):
+    store = request.app.state.store
+    dataset = Dataset.model_validate(get(store, 'spatial_dataset', dataset_id)['snapshot'])
+    try:
+        intent, audit = vision.interpret_question(payload.question, dataset)
+    except vision.VisionUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except vision.VisionFailure as exc:
+        raise HTTPException(502, str(exc)) from exc
+    run = store.save('vision_run', {**audit, 'dataset_id': str(dataset_id), 'question': payload.question,
+                                    'interpreted_query': intent.model_dump(mode='json')})
+    center = next((e for e in dataset.entities if e.id == intent.center_entity_id), None)
+    clarification = None
+    if center is None:
+        clarification = '无法从问题中确定查询中心，请指定地图上的建筑或地点名称。'
+    elif center.coordinates is None:
+        clarification = f'“{center.name}”在地图上没有坐标，无法计算距离，请改用有坐标的地点作为中心。'
+    elif intent.radius_m is None:
+        clarification = '问题中没有明确查询半径，请指定距离范围，例如 100 米。'
+    if clarification:
+        return {'status': 'clarification_needed', 'answer': clarification, 'run_id': run['id'],
+                'interpreted_query': intent, 'evidence': None, 'clarification': clarification}
+    if intent.max_age_hours is None:
+        intent = intent.model_copy(update={'max_age_hours': 24})
+    query_payload = SpatialQuery.model_validate(intent.model_dump() | {'as_of': datetime.now().astimezone()})
+    evidence = query(dataset_id, query_payload, request)
+    return {'status': 'answered', 'answer': evidence['answer'], 'run_id': run['id'],
+            'interpreted_query': intent, 'evidence': evidence, 'clarification': None}

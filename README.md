@@ -2,7 +2,7 @@
 
 当前版本 0.2.0。面向一个街区或园区的地震救援演练，优先支持**现场图片与地图联合查证**，采用 **AI 候选标注 → 人工审核/修正 → 空间和时间检索 → 带图片证据的回答**。
 
-当前完成结构化查询闭环与可配置的图片模型请求适配器；不是已完成实地验证的救援系统。原有约束规划保留兼容，暂缓扩展，见 [旧版规划文档](docs/legacy-planner.md)。
+当前完成结构化查询闭环、自然语言空间问答与可配置的图片模型请求适配器；不是已完成实地验证的救援系统。原有约束规划保留兼容，暂缓扩展，见 [旧版规划文档](docs/legacy-planner.md)。
 
 ## 运行
 
@@ -29,7 +29,7 @@ py -3.14 -m venv .venv
 
 “A 楼 100 米内，哪些入口有已审核的障碍物记录？展示地图位置、现场图片和观察时间。”
 
-当前使用结构化参数查询，回答由固定模板根据检索证据生成；尚无自由自然语言解析、LLM 回答生成或向量检索。距离、审核状态和时间过滤不依赖模型猜测。
+自然语言入口为 POST /spatial/datasets/{dataset_id}/ask：模型只把问题解析成校验后的查询意图，缺少地图中心、中心无坐标或没有明确半径时返回 clarification_needed 要求补充；未指定时间范围默认最近 24 小时。每次解析保存为运行记录（返回 run_id，含原问题与解析结果，可经 GET /spatial/runs/{id} 排查）。距离、审核状态、时间过滤和证据回答均由后端确定性完成，不让模型编造证据。结构化入口 POST /spatial/datasets/{dataset_id}/query 仍可直接使用。
 
 ## 前端接口流程
 
@@ -64,7 +64,7 @@ py -3.14 -m venv .venv
 
 annotation 字段：entity_id（候选允许 null）、observation、description、bbox、confidence。bbox 为归一化 x_min、y_min、x_max、y_max，原图左上角为原点；observation 为 obstacle_visible、no_obstacle_visible 或 unknown。
 
-审核字段：reviewer、action（approve/reject）、note，可附 corrected_annotation。批准必须关联本数据集实体。原始候选不覆盖，人工修正版单独保存。审核后不能直接改写；修改需撤回原批准、新建候选、重新审核。重复撤回会留下额外审计记录，但检索效果相同。
+审核字段：reviewer、action（approve/reject）、note，可附 corrected_annotation。批准必须关联本数据集实体。原始候选不覆盖，人工修正版单独保存。审核后不能直接改写；修改需撤回原批准、新建候选、重新审核。重复撤回返回 409。
 
 ## 模型配置与验证状态
 
@@ -74,7 +74,7 @@ annotation 字段：entity_id（候选允许 null）、observation、description
 - VISION_API_KEY：轮换后的密钥，不要使用已在聊天中公开的旧值。
 - VISION_MODEL：服务方确认支持图片输入的模型标识，不预设或猜测型号。
 
-适配器采用 Chat Completions 风格的 messages、image_url data URI 和 choices[0].message.content。模型输出须符合候选 JSON Schema；非法输出、未知地图实体或请求错误返回 502，不生成可检索记录。缺少配置返回 503。不自动重试，避免重复费用；每次 /analyze 均独立调用，尚无幂等键。
+适配器采用 Chat Completions 风格的 messages、image_url data URI 和 choices[0].message.content；内容若被 ``` 代码围栏包裹会先剥离。模型输出须符合候选 JSON Schema；非法输出、未知地图实体或请求错误返回 502，不生成可检索记录。缺少配置返回 503。不自动重试，避免重复费用；每次 /analyze 均独立调用，尚无幂等键。
 
 **第三方网关尚未实测。** 测试使用 httpx.MockTransport，不发真实图片/密钥、不产生调用费用。读取 [OpenAI 官方图片文档](https://platform.openai.com/docs/guides/images-vision) 时返回 403，在线协议核实未完成，该链接不是网关兼容性证明。AnySearch 和星云 3D 尚未接入。
 

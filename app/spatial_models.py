@@ -128,6 +128,27 @@ class SpatialQuery(StrictModel):
         return self
 
 
+class NaturalQuestion(StrictModel):
+    question: str = Field(min_length=2, max_length=1000)
+
+
+class QueryIntent(StrictModel):
+    center_entity_id: Identifier | None
+    radius_m: float | None = Field(gt=0, le=5000)
+    kind: ObjectKind
+    observation: Observation
+    max_age_hours: int | None = Field(ge=1, le=8760)
+
+
+class NaturalAnswer(StrictModel):
+    status: Literal['answered', 'clarification_needed']
+    answer: str
+    run_id: UUID
+    interpreted_query: QueryIntent
+    evidence: SpatialAnswer | None
+    clarification: str | None
+
+
 class Citation(StrictModel):
     annotation_id: UUID
     image_id: UUID

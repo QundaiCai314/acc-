@@ -1,0 +1,14 @@
+{
+  "title": "园区地震演练：地图与图片联合查证",
+  "exercise": true,
+  "coordinate_basis": "exercise",
+  "coordinate_reference_system": "WGS84",
+  "map_source": "合成演练点位，不对应真实灾害现场；距离以 A 楼参考点计算",
+  "curator": "demo-curator",
+  "entities": [
+    {"id": "building-a", "name": "A 楼", "kind": "building", "coordinates": {"latitude": 0, "longitude": 0}},
+    {"id": "entrance-near", "name": "A 楼东侧入口", "kind": "entrance", "coordinates": {"latitude": 0, "longitude": 0.0005}},
+    {"id": "entrance-far", "name": "园区远端入口", "kind": "entrance", "coordinates": {"latitude": 0, "longitude": 0.002}},
+    {"id": "entrance-unlocated", "name": "未定位入口", "kind": "entrance", "coordinates": null}
+  ]
+}

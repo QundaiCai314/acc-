@@ -1,6 +1,6 @@
 import base64
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import os
 import tempfile
 import unittest
@@ -116,6 +116,61 @@ class SpatialTests(unittest.TestCase):
         record = self.client.get(f'/spatial/datasets/{self.dataset_id}/annotations').json()['annotations'][0]
         self.assertIsNone(record['annotation']['entity_id'])
         self.assertEqual(record['review']['approved_annotation']['entity_id'], 'entrance-near')
+
+    def test_older_evidence_hint_filters_and_time_boundaries(self):
+        self.assertEqual(self.ask()['older_evidence_count'], 0)
+        old_image = self.upload({**self.image_payload, 'captured_at': '2026-10-17T03:59:59+00:00'})
+        old_annotation = self.propose(image_id=old_image)
+        self.assertEqual(self.ask()['older_evidence_count'], 0)
+        self.assertEqual(self.review(old_annotation).status_code, 201)
+        self.propose(image_id=old_image)
+        self.review(self.propose(image_id=old_image), 'reject')
+        for changes in ({'entity_id': 'entrance-far'}, {'entity_id': 'entrance-unlocated'},
+                        {'entity_id': 'building-a'}, {'observation': 'no_obstacle_visible'}):
+            self.review(self.propose({**ANNOTATION, **changes}, image_id=old_image))
+        future = self.upload({**self.image_payload, 'captured_at': '2026-10-18T04:00:01+00:00'})
+        self.review(self.propose(image_id=future))
+        result = self.ask()
+        self.assertEqual(result['older_evidence_count'], 1)
+        self.assertEqual(result['status'], 'insufficient_evidence')
+        self.assertEqual(result['citations'], [])
+        self.assertIn('1 条早于本次时间窗口', result['answer'])
+        self.assertIn('2026-10-17T03:59:59+00:00', result['answer'])
+        self.assertIn('包含演练图片证据', result['answer'])
+        wider = self.ask(max_age_hours=25)
+        self.assertEqual(wider['older_evidence_count'], 0)
+        self.assertEqual([item['annotation_id'] for item in wider['citations']], [old_annotation])
+        boundary_ids = []
+        for timestamp in ('2026-10-17T04:00:00+00:00', '2026-10-18T04:00:00+00:00'):
+            image = self.upload({**self.image_payload, 'captured_at': timestamp})
+            identifier = self.propose(image_id=image)
+            self.review(identifier)
+            boundary_ids.append(identifier)
+        result = self.ask()
+        self.assertEqual(result['older_evidence_count'], 1)
+        self.assertEqual({item['annotation_id'] for item in result['citations']}, set(boundary_ids))
+        self.assertNotIn('条早于本次时间窗口', result['answer'])
+        response = self.client.post(f'/spatial/annotations/{old_annotation}/withdraw',
+                                    json={'reviewer': 'test-reviewer', 'note': '撤回旧记录'})
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.ask()['older_evidence_count'], 0)
+
+    def test_natural_question_explains_old_evidence_without_using_it(self):
+        image = self.upload({**self.image_payload,
+                             'captured_at': (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()})
+        self.review(self.propose(image_id=image))
+        intent = QueryIntent(center_entity_id='building-a', radius_m=100, kind='entrance',
+                             observation='obstacle_visible', max_age_hours=None)
+        with patch('app.spatial.vision.interpret_question', return_value=(intent, {})):
+            response = self.client.post(f'/spatial/datasets/{self.dataset_id}/ask',
+                                        json={'question': 'A 楼 100 米内哪些入口有障碍？'})
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertEqual(result['evidence']['older_evidence_count'], 1)
+        self.assertEqual(result['evidence']['status'], 'insufficient_evidence')
+        self.assertEqual(result['evidence']['citations'], [])
+        self.assertIn('回溯 24 小时', result['answer'])
+        self.assertIn('可扩大查询时间范围查看', result['answer'])
 
     def test_validation_and_dataset_isolation(self):
         other = self.client.post('/spatial/datasets', json=self.dataset).json()['id']

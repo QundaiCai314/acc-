@@ -174,5 +174,6 @@ class SpatialAnswer(StrictModel):
     coordinate_basis: Literal['exercise', 'measured']
     query: SpatialQuery
     citations: list[Citation]
+    older_evidence_count: int = Field(ge=0)
     missing_coordinates: list[str]
     limitations: list[str]

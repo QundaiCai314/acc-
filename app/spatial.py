@@ -174,6 +174,7 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
     reviewed = store.reviewed_records(str(dataset_id))
     withdrawn = {r['annotation_id'] for r in store.list_records('annotation_retraction', str(dataset_id))}
     citations = []
+    older_matches = []
     cutoff = payload.as_of - timedelta(hours=payload.max_age_hours)
     for record, review in reviewed:
         if review['action'] != 'approve' or record['id'] in withdrawn:
@@ -187,7 +188,10 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
             continue
         image = get(store, 'spatial_image', record['image_id'])
         captured_at = datetime.fromisoformat(image['captured_at'])
-        if not cutoff <= captured_at <= payload.as_of:
+        if captured_at < cutoff:
+            older_matches.append((entity.name, captured_at, image['evidence_basis']))
+            continue
+        if captured_at > payload.as_of:
             continue
         citations.append({
             'annotation_id': record['id'], 'image_id': image['id'],
@@ -206,13 +210,21 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
         answer = f'在指定时间窗口和 {payload.radius_m:g} 米范围内，找到已审核的“{labels[payload.observation]}”记录：' + '；'.join(entries)
     else:
         answer = '未检索到满足空间、时间和审核条件的记录，无法据此判断现场有无障碍物或是否可通行。'
+        if older_matches:
+            newest_name, newest_at, _ = max(older_matches, key=lambda item: item[1])
+            answer += (f'本次查询截止 {payload.as_of.isoformat()}，回溯 {payload.max_age_hours} 小时；'
+                       f'同范围、同类别且符合观察条件的已审核记录中，有 {len(older_matches)} 条早于本次时间窗口，'
+                       f'其中最新一条为“{newest_name}”于 {newest_at.isoformat()} 采集；'
+                       '可扩大查询时间范围查看，但这些记录不代表当前状态。')
     if dataset.coordinate_basis == 'exercise':
         answer = '【演练坐标】' + answer
-    if any(c['evidence_basis'] == 'exercise' for c in citations):
+    if (any(c['evidence_basis'] == 'exercise' for c in citations)
+            or (not citations and any(item[2] == 'exercise' for item in older_matches))):
         answer = '【包含演练图片证据】' + answer
     return {
         'dataset_id': dataset_id, 'status': 'evidence_found' if citations else 'insufficient_evidence',
         'answer': answer, 'coordinate_basis': dataset.coordinate_basis, 'query': payload, 'citations': citations,
+        'older_evidence_count': len(older_matches),
         'missing_coordinates': [e.id for e in dataset.entities if e.kind == payload.kind and e.coordinates is None],
         'limitations': ['距离是 WGS84 点位间球面距离，不是步行距离或建筑边界距离',
                         '结果表示图片采集时的观察记录，不表示当前通行安全；可能存在其他相反记录',

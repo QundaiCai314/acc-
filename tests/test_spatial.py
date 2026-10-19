@@ -1,5 +1,6 @@
 import base64
 import json
+from datetime import datetime, timezone
 import os
 import tempfile
 import unittest
@@ -191,7 +192,9 @@ class SpatialTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
 
     def test_natural_question_uses_reviewed_spatial_evidence(self):
-        self.review(self.propose())
+        # /ask measures the time window from now, so the evidence image must be fresh.
+        fresh = self.upload({**self.image_payload, 'captured_at': datetime.now(timezone.utc).isoformat()})
+        self.review(self.propose(image_id=fresh))
         intent = QueryIntent(center_entity_id='building-a', radius_m=100, kind='entrance',
                              observation='obstacle_visible', max_age_hours=None)
         with patch('app.spatial.vision.interpret_question', return_value=(intent, {})):

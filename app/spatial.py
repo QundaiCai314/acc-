@@ -1,14 +1,16 @@
 import base64
 import hashlib
 import math
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from . import vision
+from .access import attributed, team_mode
 from .spatial_models import (
     Annotation, Dataset, ImageInput, ImportedProposal, NaturalAnswer, NaturalQuestion,
     QueryIntent, Retraction, Review, SpatialAnswer, SpatialQuery,
@@ -18,8 +20,8 @@ from .spatial_models import (
 router = APIRouter(prefix='/spatial', tags=['spatial-rag'])
 
 
-def get(store, kind, identifier):
-    record = store.get(kind, str(identifier))
+def get(store, kind, identifier, metadata=False):
+    record = store.get(kind, str(identifier), metadata=metadata)
     if record is None:
         raise HTTPException(404, f'{kind} not found')
     return record
@@ -43,12 +45,28 @@ def distance_m(a, b):
 
 @router.post('/datasets', status_code=201)
 def create_dataset(payload: Dataset, request: Request):
-    return request.app.state.store.save('spatial_dataset', {'snapshot': payload.model_dump(mode='json')})
+    snapshot = payload.model_dump(mode='json')
+    snapshot['curator'] = attributed({'curator': payload.curator})['curator']
+    return request.app.state.store.save('spatial_dataset', {'snapshot': snapshot})
 
 
 @router.get('/datasets/{dataset_id}')
 def read_dataset(dataset_id: UUID, request: Request):
     return get(request.app.state.store, 'spatial_dataset', dataset_id)
+
+
+@router.get('/datasets')
+def list_datasets(request: Request, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    records = request.app.state.store.list_records('spatial_dataset', None, limit+1, offset)
+    return {'datasets': records[:limit], 'next_offset': offset+limit if len(records) > limit else None}
+
+
+@router.get('/datasets/{dataset_id}/images')
+def list_images(dataset_id: UUID, request: Request, limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0)):
+    store = request.app.state.store
+    get(store, 'spatial_dataset', dataset_id)
+    records = store.list_records('spatial_image', str(dataset_id), limit+1, offset, metadata=True)
+    return {'images': records[:limit], 'next_offset': offset+limit if len(records) > limit else None}
 
 
 @router.post('/datasets/{dataset_id}/images', status_code=201)
@@ -65,7 +83,7 @@ def add_image(dataset_id: UUID, payload: ImageInput, request: Request):
 
 @router.get('/images/{image_id}')
 def read_image(image_id: UUID, request: Request):
-    record = get(request.app.state.store, 'spatial_image', image_id)
+    record = get(request.app.state.store, 'spatial_image', image_id, metadata=True)
     return {k: v for k, v in record.items() if k != 'content_base64'}
 
 
@@ -81,11 +99,27 @@ def analyze_image(image_id: UUID, request: Request):
     store = request.app.state.store
     image = get(store, 'spatial_image', image_id)
     dataset = Dataset.model_validate(get(store, 'spatial_dataset', image['dataset_id'])['snapshot'])
+    key = request.headers.get('Idempotency-Key')
+    if team_mode.get() and not key:
+        raise HTTPException(422, 'Team-mode image analysis requires Idempotency-Key')
+    if key and not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', key):
+        raise HTTPException(422, 'Idempotency-Key must be 1-128 ASCII letters, digits, hyphens or underscores')
+    scope = f'analyze:{image_id}'
+    if key:
+        status, cached = store.claim_operation(scope, key)
+        if status == 'complete':
+            return cached
+        if status != 'claimed':
+            raise HTTPException(409, 'Analysis is pending or failed; inspect before explicitly retrying with a new key')
     try:
         batch, audit = vision.analyze(image, dataset)
     except vision.VisionUnavailable as exc:
+        if key:
+            store.finish_operation(scope, key, None)
         raise HTTPException(503, str(exc)) from exc
     except vision.VisionFailure as exc:
+        if key:
+            store.finish_operation(scope, key, None)
         raise HTTPException(502, str(exc)) from exc
     run = store.save('vision_run', {**audit, 'image_id': str(image_id), 'dataset_id': image['dataset_id']})
     candidates = store.save_many('annotation', [
@@ -93,7 +127,10 @@ def analyze_image(image_id: UUID, request: Request):
          'run_id': run['id'], 'annotation': a.model_dump(mode='json')}
         for a in batch.annotations
     ])
-    return {'run_id': run['id'], 'status': 'pending_review', 'annotations': candidates}
+    result = {'run_id': run['id'], 'status': 'pending_review', 'annotations': candidates}
+    if key:
+        store.finish_operation(scope, key, result)
+    return result
 
 
 @router.get('/runs/{run_id}')
@@ -114,18 +151,20 @@ def import_annotation(dataset_id: UUID, payload: ImportedProposal, request: Requ
 
 
 @router.get('/datasets/{dataset_id}/annotations')
-def list_annotations(dataset_id: UUID, request: Request):
+def list_annotations(dataset_id: UUID, request: Request, limit: int = Query(100, ge=1, le=200),
+                     offset: int = Query(0, ge=0)):
     store = request.app.state.store
     get(store, 'spatial_dataset', dataset_id)
     withdrawn = {r['annotation_id'] for r in store.list_records('annotation_retraction', str(dataset_id))}
     result = []
-    for record in store.list_records('annotation', str(dataset_id)):
+    records = store.list_records('annotation', str(dataset_id), limit + 1, offset)
+    for record in records[:limit]:
         review = store.decision(record['id'])
         status = 'pending_review' if review is None else ('approved' if review['action'] == 'approve' else 'rejected')
         if record['id'] in withdrawn:
             status = 'withdrawn'
         result.append({**record, 'review': review, 'status': status})
-    return {'annotations': result}
+    return {'annotations': result, 'next_offset': offset + limit if len(records) > limit else None}
 
 
 @router.post('/annotations/{annotation_id}/review', status_code=201)
@@ -155,9 +194,12 @@ def withdraw_annotation(annotation_id: UUID, payload: Retraction, request: Reque
     if any(r['annotation_id'] == str(annotation_id)
            for r in store.list_records('annotation_retraction', record['dataset_id'])):
         raise HTTPException(409, 'Annotation already withdrawn')
-    return store.save('annotation_retraction', {
-        **payload.model_dump(), 'annotation_id': str(annotation_id), 'dataset_id': record['dataset_id'],
-    })
+    try:
+        return store.save('annotation_retraction', {
+            **payload.model_dump(), 'annotation_id': str(annotation_id), 'dataset_id': record['dataset_id'],
+        })
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(409, 'Annotation already withdrawn') from exc
 
 
 @router.post('/datasets/{dataset_id}/query', response_model=SpatialAnswer)
@@ -186,7 +228,7 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
         distance = distance_m(center.coordinates, entity.coordinates)
         if distance > payload.radius_m:
             continue
-        image = get(store, 'spatial_image', record['image_id'])
+        image = get(store, 'spatial_image', record['image_id'], metadata=True)
         captured_at = datetime.fromisoformat(image['captured_at'])
         if captured_at < cutoff:
             older_matches.append((entity.name, captured_at, image['evidence_basis']))

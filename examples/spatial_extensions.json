@@ -1,0 +1,44 @@
+{
+  "network": {
+    "source_note": "演练路网：直达路封闭，步行经东侧入口绕行；不是实际道路调查",
+    "valid_from": "2026-10-19T00:00:00Z",
+    "valid_until": "2026-10-20T00:00:00Z",
+    "edges": [
+      {"id": "direct", "source": "building-a", "target": "entrance-far", "length_m": 230, "status": "blocked", "modes": ["walk", "vehicle"], "source_note": "演练封路"},
+      {"id": "east", "source": "building-a", "target": "entrance-near", "length_m": 60, "status": "open", "modes": ["walk", "vehicle"], "source_note": "演练人工确认开放"},
+      {"id": "detour", "source": "entrance-near", "target": "entrance-far", "length_m": 200, "status": "open", "modes": ["walk"], "bidirectional": false, "source_note": "演练单向步行道路"}
+    ]
+  },
+  "registration": {
+    "source_note": "单位为米的合成三维控制点，仅验证配准计算；不代表真实测绘精度",
+    "valid_from": "2026-10-19T00:00:00Z",
+    "valid_until": "2026-10-20T00:00:00Z",
+    "scene_name": "演练局部场景",
+    "origin": {"latitude": 0, "longitude": 0},
+    "origin_altitude_m": 0,
+    "scene_unit_m": 1,
+    "solve_scale": false,
+    "control_points": [
+      {"label": "origin", "scene": [0,0,0], "enu_m": [0,0,0]},
+      {"label": "east", "scene": [60,0,0], "enu_m": [60,0,0]},
+      {"label": "north", "scene": [0,60,0], "enu_m": [0,60,0]},
+      {"label": "up", "scene": [0,0,10], "enu_m": [0,0,10]}
+    ],
+    "check_points": [{"label": "independent", "scene": [20,20,5], "enu_m": [20,20,5]}],
+    "objects": [
+      {"entity_id": "building-a", "min_corner": [-5,-5,0], "max_corner": [5,5,3]},
+      {"entity_id": "entrance-near", "min_corner": [55,-1,6], "max_corner": [56,1,8]}
+    ],
+    "max_rmse_m": 0.1,
+    "max_error_m": 0.2
+  },
+  "relations": {
+    "source_note": "演练包含关系，用于展示多跳推理；不是实际场地拓扑",
+    "valid_from": "2026-10-19T00:00:00Z",
+    "valid_until": "2026-10-20T00:00:00Z",
+    "relations": [
+      {"subject": "entrance-near", "predicate": "part_of", "object": "entrance-far", "source_note": "合成关系第一跳"},
+      {"subject": "entrance-far", "predicate": "part_of", "object": "building-a", "source_note": "合成关系第二跳"}
+    ]
+  }
+}

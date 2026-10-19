@@ -1,12 +1,16 @@
 # AI Disaster Commander · 灾害空间 RAG 后端
 
-当前版本 0.2.0。面向一个街区或园区的地震救援演练，优先支持**现场图片与地图联合查证**，采用 **AI 候选标注 → 人工审核/修正 → 空间和时间检索 → 带图片证据的回答**。
+当前版本 0.3.0。面向一个街区或园区的地震救援演练，支持**图片、地图、审核路网与配准后的局部三维对象联合查证**，采用 **AI 候选标注 → 人工审核/修正 → 空间和时间检索 → 带证据的回答**。
 
-当前完成结构化查询闭环、自然语言空间问答与可配置的图片模型请求适配器；不是已完成实地验证的救援系统。原有约束规划保留兼容，暂缓扩展，见 [旧版规划文档](docs/legacy-planner.md)。
+已实现小团队角色权限及工作空间隔离、控制点三维配准、道路最短路径和多条件/多跳空间推理。模型网关的图片与问答接口、AnySearch 匿名搜索已实际联调；尚未完成现场识别质量验证。原有约束规划保留兼容，见 [旧版规划文档](docs/legacy-planner.md)。
+
+- [多人部署、账户管理与备份](docs/team-deployment.md)
+- [三维配准、路网与复杂关系接口](docs/spatial-extensions.md)
+- [外部服务协议、实测结果与星云边界](docs/integrations.md)
 
 ## 运行
 
-已验证 Windows x64 / Python 3.14。使用现有依赖，无新增依赖。
+已验证 Windows x64 / Python 3.14。三维计算使用锁文件已有的 NumPy，并将其列为直接依赖。
 
 ```powershell
 py -3.14 -m venv .venv
@@ -21,6 +25,7 @@ py -3.14 -m venv .venv
 
 ```powershell
 .venv/Scripts/python.exe -m examples.demo_spatial
+.venv/Scripts/python.exe -m examples.demo_advanced
 ```
 
 该演示生成合成示意图片，导入明确标为外部未核实来源的测试候选，展示“审核前无结果，审核后返回证据，撤回后无结果”。它不是 AI 识别效果展示；数据仅存临时数据库，执行后清理。
@@ -68,15 +73,15 @@ annotation 字段：entity_id（候选允许 null）、observation、description
 
 ## 模型配置与验证状态
 
-启动前设置以下环境变量（不会自动读取 .env）：
+设置以下环境变量，或写入被 Git 忽略的 data/provider-settings.json（环境变量优先，不自动读取 .env）：
 
 - VISION_CHAT_URL：服务方确认的完整 HTTPS Chat Completions 地址，不自动拼接。
-- VISION_API_KEY：轮换后的密钥，不要使用已在聊天中公开的旧值。
+- VISION_API_KEY：模型网关密钥。多人部署前轮换曾在聊天中提供的密钥。
 - VISION_MODEL：服务方确认支持图片输入的模型标识，不预设或猜测型号。
 
-适配器采用 Chat Completions 风格的 messages、image_url data URI 和 choices[0].message.content；内容若被 ``` 代码围栏包裹会先剥离。模型输出须符合候选 JSON Schema；非法输出、未知地图实体或请求错误返回 502，不生成可检索记录。缺少配置返回 503。不自动重试，避免重复费用；每次 /analyze 均独立调用，尚无幂等键。
+适配器采用 Chat Completions 风格的 messages、image_url data URI 和 choices[0].message.content；内容若被 ``` 代码围栏包裹会先剥离。模型输出须符合候选 JSON Schema；非法输出、未知地图实体或请求错误返回 502，不生成可检索记录。缺少配置返回 503。不自动重试，避免重复费用；team 模式的 /analyze 必须提供 Idempotency-Key，成功请求可重放原结果；local 模式可选。
 
-**第三方网关尚未实测。** 测试使用 httpx.MockTransport，不发真实图片/密钥、不产生调用费用。读取 [OpenAI 官方图片文档](https://platform.openai.com/docs/guides/images-vision) 时返回 403，在线协议核实未完成，该链接不是网关兼容性证明。AnySearch 和星云 3D 尚未接入。
+**2026-10-19 已实测第三方网关和 AnySearch。** 网关标识 gpt-4.1-mini 的图片请求和自然语言查询解析成功；AnySearch 旧密钥返回 401，匿名接口成功。单元测试仍使用模拟响应，不产生费用；显式运行 examples.check_integrations 才做真实调用。官方模型文档和图片文档已读取，但官方能力不保证第三方网关的模型身份或识别质量。星云 3D 已核实为数字人 SDK，缺少应用凭据，未启用；不作为三维配准服务。详细来源和限制见接入文档。
 
 ## 结果边界
 
@@ -94,10 +99,10 @@ annotation 字段：entity_id（候选允许 null）、observation、description
 ## 维护
 
 - spatial_models.py 定义输入与查询输出，spatial.py 负责审核和空间查询，vision.py 隔离外部模型，store.py 持久化。
-- SQLite 版本仍为 1，旧场景和计划保持可读。复用 decisions 表的 plan_id 存 annotation ID；未来拆表须迁移。
+- SQLite schema 升级为 2，原有记录归入 default 工作空间，旧场景和计划保持可读；升级前备份。新增工作空间/数据集索引、撤回唯一约束、跨进程限流和幂等记录；启用 WAL。已有重复撤回会使迁移失败，需核对记录后处理，不自动删除历史。
 - 测试覆盖原有规划、审核门槛、人工修正、撤回、持久化、跨数据集引用、时间窗、未知坐标、距离边界和模型协议错误。
 - requirements.lock.txt 固定版本；Starlette 测试客户端仍有 httpx 弃用提醒，测试通过。
 - 默认 data/disaster.db，可用 DISASTER_DB_PATH 调整。停止服务后复制数据库备份。
 - 图片 Base64 存入 SQLite，JSON 扫描只面向小型演示，扩展时采用文件/对象存储及空间索引。
-- 仅本机单用户，无鉴权、审核者身份验证、分页、限流、流式上传限额或跨域配置；reviewer 为自报身份。多人或公网部署前必须补齐访问控制。
-- 新空间数据尚无 RDF 导出/推理，RDF 当前只适用于旧规划场景。自由问答、视频、三维配准及道路网络是后续开发项。
+- local 模式只接受本机连接；team 模式启用逐人令牌、四种角色、工作空间隔离、真实审核身份、分页、限流和请求体上限。部署命令、CORS、TLS 和账户轮换见多人部署文档。local 模式仍保留自报审核人兼容离线演练，不要通过代理对外开放。
+- 新空间数据尚无 RDF 导出；RDF 当前只适用于旧规划场景。新空间关系引擎采用确定性图搜索。三维配准需要输入控制点、独立检查点和对象范围；不包含照片自动重建、点云自动对应或任意三维格式解析。前端仍为原型，尚未连接新接口。

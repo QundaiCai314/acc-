@@ -4,24 +4,49 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 
 from .graph import export_turtle
 from .models import Decision, Scenario
 from .planner import compare
 from .store import Store
 from .spatial import router as spatial_router
+from .geometry import router as geometry_router
+from .integrations import router as integrations_router
+from .access import AccessConfig, AccessMiddleware, authorize, principal
+from .settings import ConfigurationError
 
 
-def create_app(db_path: Path | None = None) -> FastAPI:
+def create_app(db_path: Path | None = None, *, mode: str | None = None, access_config: Path | None = None) -> FastAPI:
+    mode = mode or os.getenv('DISASTER_MODE', 'local')
+    if mode not in ('local', 'team'):
+        raise ValueError('DISASTER_MODE must be local or team')
+    access_config = access_config or Path(os.getenv('DISASTER_ACCESS_CONFIG', 'data/access.json'))
     @asynccontextmanager
     async def lifespan(app):
+        if mode == 'team':
+            AccessConfig.model_validate_json(access_config.read_text(encoding='utf-8'))
         app.state.store = Store(db_path or Path(os.getenv('DISASTER_DB_PATH', 'data/disaster.db')))
         yield
 
-    app = FastAPI(title='AI Disaster Commander — Spatial RAG', version='0.2.0', lifespan=lifespan)
+    app = FastAPI(title='AI Disaster Commander — Spatial RAG', version='0.3.0', lifespan=lifespan,
+                  dependencies=[Depends(authorize)])
+    app.add_middleware(AccessMiddleware, mode=mode, config_path=access_config)
+    origins = [s.strip() for s in os.getenv('DISASTER_CORS_ORIGINS', '').split(',') if s.strip()]
+    if '*' in origins:
+        raise ValueError('List exact CORS origins; wildcard is not supported')
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=['GET', 'POST'],
+                           allow_headers=['Authorization', 'Content-Type', 'Idempotency-Key'])
     app.include_router(spatial_router)
+    app.include_router(geometry_router)
+    app.include_router(integrations_router)
+
+    @app.exception_handler(ConfigurationError)
+    async def invalid_provider_config(request, exc):
+        return JSONResponse({'detail': 'Provider configuration is unreadable or invalid'}, status_code=503)
 
     def get(kind: str, identifier: UUID):
         record = app.state.store.get(kind, str(identifier))
@@ -31,7 +56,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.get('/health')
     def health():
-        return {'status': 'ok', 'mode': 'exercise', 'version': app.version}
+        return {'status': 'ok', 'mode': 'exercise', 'access_mode': mode, 'version': app.version}
+
+    @app.get('/auth/me')
+    def me():
+        return principal.get()
 
     @app.post('/scenarios', status_code=201)
     def create_scenario(scenario: Scenario):

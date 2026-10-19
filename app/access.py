@@ -65,7 +65,7 @@ def authorize(request: Request, credentials=Depends(HTTPBearer(auto_error=False)
         raise HTTPException(403, 'Run logs require contributor access')
     if request.method in ('GET', 'HEAD', 'OPTIONS'):
         return
-    if route.endswith(('/review', '/withdraw', '/decision')):
+    if route.endswith(('/review', '/withdraw', '/decision', '/claim', '/release')):
         if role not in ('reviewer', 'admin'):
             raise HTTPException(403, 'Reviewer role required')
     elif route.endswith(('/query', '/ask', '/route', '/reason', '/transform')):

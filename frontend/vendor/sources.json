@@ -1,0 +1,31 @@
+{
+  "maplibre-gl.js": {
+    "url": "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js",
+    "sha256": "1525f971223d81f169f049f1ce50083e6f1643aa6b0ea0716653a550d2d57fc2"
+  },
+  "maplibre-gl.css": {
+    "url": "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css",
+    "sha256": "43c1d886b5fdf0aac4e7135bd6f84b823d9f48283a648012665f9be52c01389f"
+  },
+  "maplibre-LICENSE.txt": {
+    "url": "https://unpkg.com/maplibre-gl@5.6.2/LICENSE.txt",
+    "sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
+  },
+  "three.module.js": {
+    "url": "https://unpkg.com/three@0.180.0/build/three.module.js",
+    "sha256": "c8211c69345d2e9949dc7a8ac969380497aa0600a5a8ac6a459c8cd02dd9cb8a"
+  },
+  "three.core.js": {
+    "url": "https://unpkg.com/three@0.180.0/build/three.core.js",
+    "sha256": "eb077d2417f61d3e6d9264c317cabc4ea35769ed6b0ab533067292a550784c20"
+  },
+  "OrbitControls.js": {
+    "url": "https://unpkg.com/three@0.180.0/examples/jsm/controls/OrbitControls.js",
+    "modification": "Changed the bare 'three' import to './three.module.js'; hash describes the vendored file.",
+    "sha256": "06864a0fcb647730bfbc690b6c25a121199d716a3e299a40158509cbd247c3bf"
+  },
+  "three-LICENSE.txt": {
+    "url": "https://unpkg.com/three@0.180.0/LICENSE",
+    "sha256": "bfe119ea4fd413f5f7ca3fcd63adb0c4a073ed39daa2fe7d3e6b769e21272601"
+  }
+}

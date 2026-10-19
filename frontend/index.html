@@ -1,14 +1,25 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#071421" />
-    <title>AI Disaster Commander · Frontend</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#101619" />
+    <meta name="referrer" content="no-referrer" />
+    <title>AI Disaster Commander · 空间指挥台</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23101619'/%3E%3Cpath d='M16 4 28 26H4Z' fill='none' stroke='%236dd5b0' stroke-width='3'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="vendor/maplibre-gl.css" />
+    <link rel="stylesheet" href="workbench.css" />
+    <script defer src="vendor/maplibre-gl.js"></script>
+    <script type="module" src="app.js"></script>
   </head>
   <body>
+    <a class="skip" href="#main">跳到主要内容</a>
     <div id="app"></div>
-    <script src="./app.js"></script>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <dialog id="dialog"></dialog>
   </body>
 </html>

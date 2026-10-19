@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, Response
 from .graph import export_turtle
 from .models import Decision, Scenario
 from .planner import compare
-from .store import Store
+from .store import Store, ReviewLeaseConflict
 from .spatial import router as spatial_router
 from .geometry import router as geometry_router
 from .integrations import router as integrations_router
@@ -47,6 +47,10 @@ def create_app(db_path: Path | None = None, *, mode: str | None = None, access_c
     @app.exception_handler(ConfigurationError)
     async def invalid_provider_config(request, exc):
         return JSONResponse({'detail': 'Provider configuration is unreadable or invalid'}, status_code=503)
+
+    @app.exception_handler(ReviewLeaseConflict)
+    async def review_conflict(request, exc):
+        return JSONResponse({'detail': str(exc)}, status_code=409)
 
     def get(kind: str, identifier: UUID):
         record = app.state.store.get(kind, str(identifier))

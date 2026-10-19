@@ -184,6 +184,28 @@ def review_annotation(annotation_id: UUID, payload: Review, request: Request):
         raise HTTPException(409, 'Already reviewed; withdraw an approval and submit a new candidate to revise') from exc
 
 
+@router.get('/annotations/{annotation_id}/lease')
+def read_review_lease(annotation_id: UUID, request: Request):
+    store = request.app.state.store
+    get(store, 'annotation', annotation_id)
+    return {'lease': store.review_lease(str(annotation_id))}
+
+
+@router.post('/annotations/{annotation_id}/claim')
+def claim_review(annotation_id: UUID, request: Request):
+    store = request.app.state.store
+    get(store, 'annotation', annotation_id)
+    return {'lease': store.claim_review(str(annotation_id))}
+
+
+@router.post('/annotations/{annotation_id}/release')
+def release_review(annotation_id: UUID, request: Request):
+    store = request.app.state.store
+    get(store, 'annotation', annotation_id)
+    store.release_review(str(annotation_id))
+    return {'lease': store.review_lease(str(annotation_id))}
+
+
 @router.post('/annotations/{annotation_id}/withdraw', status_code=201)
 def withdraw_annotation(annotation_id: UUID, payload: Retraction, request: Request):
     store = request.app.state.store
@@ -243,6 +265,7 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
             'captured_at': captured_at, 'source': image['source'], 'evidence_basis': image['evidence_basis'],
             'origin': record['origin'], 'annotation': annotation,
             'reviewer': review['reviewer'], 'review_note': review['note'], 'reviewed_at': review['created_at'],
+            'camera_pose': image.get('camera_pose'),
         })
     citations.sort(key=lambda c: (c['distance_m'], c['entity_id'], c['annotation_id']))
     labels = {'obstacle_visible': '可见障碍物', 'no_obstacle_visible': '画面中未见明显障碍物', 'unknown': '情况不明确'}

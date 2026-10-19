@@ -1,33 +1,864 @@
-const OBSERVATIONS=[
-  {kind:'人员',title:'A 栋二层 · 3 名疑似被困人员',time:'00:21–00:26',detail:'窗口附近出现 3 个疑似人员目标；画面遮挡，伤情未知。',confidence:'86%',impact:'创建人员复核任务；结构评估通过前不建议进入建筑。'},
-  {kind:'建筑',title:'A 栋外立面 · 局部损坏线索',time:'00:42–00:47',detail:'可见外立面缺损与散落构件；内部承重结构无法由当前画面确认。',confidence:'79%',impact:'保留结构进入限制；需要现场专业评估。'},
-  {kind:'道路',title:'东侧道路 · 初始观察可通行',time:'00:58–01:02',detail:'视频拍摄时未发现明显障碍，整条道路状态仍需现场核实。',confidence:'82%',impact:'道路状态会影响方案路线。'}
-];
-const state={screen:location.hash.slice(2)||'command',variant:new URLSearchParams(location.search).get('variant')||'A',mobile:false,confirmed:false,stale:false,ready:false,activeObservation:0,decisions:Array(3).fill('待确认'),source:'DJI_0421.MP4',toast:''};
-const steps=[['import','导入现场'],['analysis','分析进度'],['command','现场态势'],['review','证据审核'],['plans','方案对比'],['field','现场回报']];
-const app=document.querySelector('#app');
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function go(screen){state.screen=screen;location.hash=screen;render();scrollTo({top:0,behavior:'smooth'});}function notify(msg){state.toast=msg;render();setTimeout(()=>{state.toast='';render()},2200)}
-function shell(body){return `<div class="shell"><header class="topbar"><div class="brand"><span class="logo">⌁</span>AI Disaster Commander</div><span class="crumb">/ 北城片区 · 地震演示</span><div class="top-actions"><span class="status"><i></i>演示现场 · 14:32</span><span class="avatar">指</span></div></header>${body}</div>`}
-function nav(){return `<nav class="workflow">${steps.map(([id,label])=>`<button class="${state.screen===id?'active':''}" onclick="go('${id}')">${label}</button>`).join('<span>›</span>')}<span style="margin-left:auto;color:var(--muted);white-space:nowrap">${state.stale?'世界状态 v18 · 需重算':'世界状态 v17'}</span></nav>`}
-function sidebar(){return `<aside class="sidebar"><div class="eyebrow">COMMAND CENTER</div><h2 class="side-title">北城片区</h2><div class="side-label">现场导航</div><div class="side-nav">${steps.slice(2).map(([id,label])=>`<button class="${state.screen===id?'active':''}" onclick="go('${id}')">${label}</button>`).join('')}</div><div class="side-label">证据来源</div><div class="side-nav"><button onclick="go('review')">无人机 DJI_0421</button><button onclick="go('field')">现场上报 · ${state.decisions.filter(v=>v!=='待确认').length}</button><button onclick="go('command')">地图与路网</button></div><div class="notice" style="margin-top:28px">演示数据只用于验证界面流程，所有视频、地图和方案均为固定样例。</div></aside>`}
-function page(body){return shell(`${nav()}<div class="layout">${sidebar()}<main class="main">${body}</main></div>`)}
-function map(){return `<div class="map"><div class="zone"></div><div class="road one"></div><div class="road two ${state.confirmed?'blocked':''}"></div><button class="marker a" onclick="go('review')">A</button><button class="marker r" onclick="go('plans')">R1</button><button class="marker x" onclick="go('review')">!</button><div class="legend"><span><i class="dot" style="background:var(--amber)"></i>建筑</span><span><i class="dot" style="background:var(--cyan)"></i>资源</span><span><i class="dot" style="background:var(--red)"></i>风险</span></div></div>`}
-function video(){const o=OBSERVATIONS[state.activeObservation];return `<div class="video"><div class="video-label"><span class="badge blue">关键帧示意</span> ${o.time.split('–')[0]} · ${esc(state.source)}</div><div class="building"></div><div class="people"></div><div class="scan"><b>${o.kind} · ${o.confidence}</b></div><div class="video-controls"><button class="play" onclick="notify('当前是关键帧示意，可点击下方事件切换证据')">▶</button><div class="track"><i></i></div><span>00:21 / 01:12</span></div></div><div class="timeline">${OBSERVATIONS.map((v,i)=>`<button class="event ${i===state.activeObservation?'active':''}" onclick="state.activeObservation=${i};render()"><strong>${v.time} · ${v.kind}</strong><small>${v.title}</small></button>`).join('')}</div>`}
-function plan(){const stale=state.stale&&!state.ready;return `<div class="replan ${stale?'show':''}">⚠ 东侧道路已被人工确认阻断，Plan A 已过期。<button class="btn small" onclick="replan()">${state.ready?'查看新方案':'重新规划'}</button></div><div class="plan-tabs"><button class="active">Plan ${state.ready?'B':'A'} · ${state.ready?'低风险':'最快抵达'}</button><button onclick="go('plans')">比较方案</button></div><div class="plan-card"><div style="display:flex;justify-content:space-between;gap:10px"><h4>${state.ready?'先补齐入口信息':'先侦察，再进入'}</h4><span class="badge ${stale?'red':'green'}">${stale?'已过期':state.ready?'待确认':'可执行'}</span></div><p>目标：Building A · 3 名疑似被困人员</p><div class="step"><span class="num">1</span><div><strong>Drone 1 · 现场复核</strong><small>确认楼梯与二次坍塌迹象 · 3 min</small></div></div><div class="step"><span class="num">2</span><div><strong>Rescue Team 1 · 结构搜救</strong><small>${state.ready?'South Route · 9 min':'East Route · 6 min'}</small></div></div><div class="step"><span class="num">3</span><div><strong>Ambulance 1 · 待命接驳</strong><small>集合点：South Gate</small></div></div><div class="action"><button class="btn primary" ${stale?'disabled':''} onclick="go('plans')">查看方案依据</button><button class="btn" onclick="go('field')">现场回报</button></div></div>`}
-function command(){return page(`<div class="title-row"><div><div class="eyebrow">COMMAND CENTER · EARTHQUAKE</div><h1 class="title">北城片区 · 现场态势</h1><p class="subtitle">视频、地图、世界状态与候选方案协同查看</p></div><div class="toolbar"><button class="btn" onclick="state.mobile=!state.mobile;render()">${state.mobile?'网页预览':'手机预览'}</button><button class="btn primary" onclick="go('review')">处理待确认 · 3</button></div></div><div class="stats"><div class="stat"><small>疑似被困</small><strong>03</strong></div><div class="stat"><small>高风险点</small><strong style="color:var(--red)">02</strong></div><div class="stat"><small>可用资源</small><strong style="color:var(--cyan)">04</strong></div><div class="stat"><small>信息缺口</small><strong style="color:var(--amber)">05</strong></div></div><div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>现场视频 · 证据时间轴</h3><span>点击事件跳转时间</span></div><div class="panel-body">${video()}</div></section><section class="panel"><div class="panel-head"><h3>灾害地图 · 行动路线</h3><span>点击对象查看详情</span></div><div class="panel-body">${map()}</div></section><section class="panel"><div class="panel-head"><h3>当前世界状态</h3><span>${state.stale?'v18 · 人工更新':'RDF · v17'}</span></div><div class="panel-body"><div class="list">${OBSERVATIONS.map((o,i)=>`<div class="item"><i class="dot" style="background:${i===1?'var(--red)':i===2?'var(--amber)':'var(--cyan)'}"></i><p><b>${o.title}</b><span>${o.time} · ${state.decisions[i]}</span></p><button class="btn small" onclick="state.activeObservation=${i};go('review')">查看</button></div>`).join('')}</div></div></section><section class="panel"><div class="panel-head"><h3>候选救援方案</h3><span>${state.stale&&!state.ready?'需要重算':'约束检查 · 0 违规'}</span></div><div class="panel-body">${plan()}</div></section></div>`)}
-function importPage(){return page(`<div class="title-row"><div><div class="eyebrow">INCIDENT INTAKE</div><h1 class="title">建立现场，从一段视频开始</h1><p class="subtitle">固定演示数据层已经接入，后续可替换为上传接口。</p></div></div><div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>现场信息</h3><span>单现场 · 地震坍塌</span></div><div class="panel-body"><label class="form-label">事件名称<input value="北城片区 · A 栋局部坍塌"></label><label class="form-label">现场区域<input value="北城片区 / 演示区域"></label><div class="mobile-card" style="padding:30px;text-align:center;border-style:dashed"><div class="logo" style="margin:auto;font-size:24px">↑</div><h3>导入现场短视频</h3><p class="subtitle">MP4 · 建议 30–90 秒 · 当前仅展示素材名</p><input type="file" accept="video/mp4" onchange="selectFile(this.files[0])"><p class="subtitle" id="source">当前素材：${esc(state.source)}</p></div></div></section><section class="panel"><div class="panel-head"><h3>分析闭环</h3><span>4 个步骤</span></div><div class="panel-body"><div class="step"><span class="num">1</span><div><strong>提取证据</strong><small>识别人员、建筑、道路和风险线索。</small></div></div><div class="step"><span class="num">2</span><div><strong>建立世界状态</strong><small>保存关系、时间、来源和不确定性。</small></div></div><div class="step"><span class="num">3</span><div><strong>生成候选方案</strong><small>检查能力、路线和资源约束。</small></div></div><div class="step"><span class="num">4</span><div><strong>人工确认后重规划</strong><small>所有修正保留审计记录。</small></div></div></div></section></div><div class="action"><button class="btn primary" onclick="go('analysis')">开始演示分析 →</button></div>`)}
-function analysis(){return page(`<div class="title-row"><div><div class="eyebrow">ANALYSIS RUN</div><h1 class="title">正在构建现场观察</h1><p class="subtitle">${esc(state.source)} · FixtureVisionAdapter · 演示进度</p></div></div><div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>分析进度</h3><span>100%</span></div><div class="panel-body"><div class="progress-list">${['读取视频与抽取关键帧','识别人员、建筑与道路','关联观察与证据时间码','生成当前世界状态'].map((v,i)=>`<div class="item"><span class="num">✓</span><p><b>${v}</b><span>完成 · 可追溯</span></p><span class="badge green">完成</span></div>`).join('')}</div><div class="notice" style="margin-top:14px">内部楼梯状态、人员伤情和余震信息无法从当前视频确认，会进入“未知信息”。</div></div></section><section class="panel"><div class="panel-head"><h3>首批观察</h3><span>待人工确认</span></div><div class="panel-body">${OBSERVATIONS.map((o,i)=>`<div class="item"><i class="dot"></i><p><b>${o.title}</b><span>${o.time} · 置信度 ${o.confidence}</span></p></div>`).join('')}<button class="btn primary" style="margin-top:12px" onclick="go('command')">进入现场态势 →</button></div></section></div>`)}
-function review(){const o=OBSERVATIONS[state.activeObservation];return page(`<div class="title-row"><div><div class="eyebrow">EVIDENCE REVIEW</div><h1 class="title">把每个判断带回证据</h1><p class="subtitle">确认、驳回或纠正不会覆盖原始观察。</p></div></div><div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>当前观察 · OBS-00${92+state.activeObservation}</h3><span class="badge ${state.decisions[state.activeObservation]==='待确认'?'amber':'green'}">${state.decisions[state.activeObservation]}</span></div><div class="panel-body">${video()}<div class="notice" style="margin-top:14px"><b>${o.title}</b><p>${o.detail}</p><span>行动影响：${o.impact}</span></div><div class="action"><button class="btn primary" onclick="decide('已确认')">确认观察</button><button class="btn danger" onclick="decide('已驳回')">驳回观察</button>${state.activeObservation===2?'<button class="btn" onclick="openCorrection()">纠正为道路阻断</button>':''}</div></div></section><section class="panel"><div class="panel-head"><h3>观察列表</h3><span>3 条</span></div><div class="panel-body">${OBSERVATIONS.map((v,i)=>`<button class="event ${i===state.activeObservation?'active':''}" style="width:100%;margin-bottom:8px" onclick="state.activeObservation=${i};render()"><strong>${v.kind} · ${v.time}</strong><small>${v.title}</small><span class="badge ${state.decisions[i]==='待确认'?'amber':'green'}" style="margin-top:7px">${state.decisions[i]}</span></button>`).join('')}<div class="notice">已驳回观察不会参与当前推理；人工决定和原始模型响应都会保留。</div></div></section></div>`)}
-function plans(){return page(`<div class="title-row"><div><div class="eyebrow">PLAN GUARD</div><h1 class="title">候选方案与变化原因</h1><p class="subtitle">方案绑定当前世界状态；现场事实变化后旧方案自动失效。</p></div></div>${state.stale&&!state.ready?`<div class="notice" style="border-color:#8d603d;background:#352a22;color:#ffd09b;margin-bottom:16px"><b>Plan A 已过期</b><br>东侧道路已经确认阻断，请重新检查路线与资源约束。<button class="btn primary" style="margin-top:10px" onclick="replan()">生成 Plan B</button></div>`:''}${state.ready?`<div class="notice" style="border-color:#377878;background:#123c3c;color:#d8ffff;margin-bottom:16px"><b>Plan B 已生成 · 待人工确认</b><br>已排除东侧道路，改走 South Route；预计抵达时间增加 3 分钟。</div>`:''}<div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>方案比较</h3><span>${state.ready?'世界状态 v18':'世界状态 v17'}</span></div><div class="panel-body"><div class="grid" style="grid-template-columns:1fr 1fr"><button class="mobile-card" style="text-align:left;border-color:${!state.ready?'var(--cyan)':'var(--line)'}"><span class="eyebrow">PLAN A</span><h3>最快抵达</h3><p class="subtitle">East Route · 6 分钟</p><p>并行侦察、队伍前往集合点；需要东侧道路可通行。</p></button><button class="mobile-card" style="text-align:left;border-color:${state.ready?'var(--cyan)':'var(--line)'}"><span class="eyebrow">PLAN B</span><h3>低风险</h3><p class="subtitle">South Route · 9 分钟</p><p>先补齐入口信息，再安排队伍进入；路线避开已阻断路段。</p></button></div><div class="notice" style="margin-top:14px">硬约束：队伍能力匹配、路线可达、同一资源不重复占用、关键任务均有证据来源。</div></div></section><section class="panel"><div class="panel-head"><h3>方案解释</h3><span>证据 → 推断 → 行动</span></div><div class="panel-body"><div class="item"><i class="dot"></i><p><b>观察</b><span>3 名疑似被困人员位于 A 栋二层 · 00:21</span></p></div><div class="item"><i class="dot" style="background:var(--amber)"></i><p><b>${state.ready?'人工修正':'推断'}</b><span>${state.ready?'东侧道路确认阻断，Plan A 失效。':'局部损坏与入口未知，使无人机复核成为前置任务。'}</span></p></div><div class="item"><i class="dot" style="background:var(--green)"></i><p><b>行动</b><span>${state.ready?'改走 South Route，等待指挥员确认。':'先侦察，再安排结构搜救队进入。'}</span></p></div><div class="action"><button class="btn primary" onclick="${state.ready?'approve()':'openCorrection()'}">${state.ready?'确认 Plan B':'模拟道路变化'}</button><button class="btn" onclick="go('field')">查看现场回报</button></div></div></section></div>`)}
-function field(){return page(`<div class="title-row"><div><div class="eyebrow">FIELD REPORT</div><h1 class="title">把现场变化带回指挥中心</h1><p class="subtitle">移动端优先的现场回报入口。</p></div></div><div class="grid command-grid"><section class="panel"><div class="panel-head"><h3>复核 A 栋入口</h3><span class="badge ${state.confirmed?'green':'amber'}">${state.confirmed?'已提交':'待核实'}</span></div><div class="panel-body">${map()}<label class="form-label">道路状态<select><option>已阻断</option><option>无法确认</option></select></label><label class="form-label">现场说明<textarea>东侧道路有大块构件散落，车辆无法通行；建议复核南侧道路。</textarea></label><button class="btn primary" onclick="state.confirmed=true;state.stale=true;go('plans');notify('现场回报已保存，相关方案已标记过期')">提交现场回报</button></div></section><section class="panel"><div class="panel-head"><h3>回报会触发什么</h3><span>状态更新</span></div><div class="panel-body"><div class="step"><span class="num">1</span><div><strong>保存人工观察</strong><small>保留来源和说明。</small></div></div><div class="step"><span class="num">2</span><div><strong>旧方案标记为过期</strong><small>不允许继续确认过期路线。</small></div></div><div class="step"><span class="num">3</span><div><strong>生成新候选方案</strong><small>新的路线仍需人工确认。</small></div></div></div></section></div>`)}
-function selectFile(file){if(file?.name){state.source=file.name;render();notify('已选择 '+file.name+'；当前使用固定演示分析')}}function decide(v){state.decisions[state.activeObservation]=v;state.stale=true;render();notify('人工决定已记录，方案需要重新检查')}function openCorrection(){document.querySelector('.drawer').classList.add('open')}function closeCorrection(){document.querySelector('.drawer').classList.remove('open')}function saveCorrection(){state.confirmed=true;state.stale=true;state.decisions[2]='已纠正';closeCorrection();render();notify('世界状态已更新，Plan A 已过期')}function replan(){state.ready=false;render();setTimeout(()=>{state.ready=true;render();notify('Plan B 已生成，等待人工确认')},700)}function approve(){state.stale=false;state.ready=true;render();notify('Plan B 已加入本地任务清单')}function render(){const body=state.screen==='import'?importPage():state.screen==='analysis'?analysis():state.screen==='review'?review():state.screen==='plans'?plans():state.screen==='field'?field():command();app.innerHTML=body+`<div class="drawer"><div class="drawer-panel"><button class="btn" onclick="closeCorrection()">关闭</button><div class="eyebrow" style="margin-top:22px">HUMAN CORRECTION</div><h2>确认东侧道路已阻断？</h2><p class="subtitle">此修正会更新世界状态，并使旧方案失效。</p><label class="form-label">纠正依据<textarea>现场复核：东侧道路存在散落构件，车辆无法通行。</textarea></label><button class="btn primary" onclick="saveCorrection()">保存纠正</button></div></div><div class="prototype"><button onclick="state.variant=state.variant==='A'?'B':state.variant==='B'?'C':'A';notify('当前方案 '+state.variant)">‹</button><span class="label">UI 方案 ${state.variant} · ${state.mobile?'移动':'网页'}</span><button onclick="state.variant=state.variant==='C'?'A':state.variant==='A'?'B':'C';notify('当前方案 '+state.variant)">›</button><span class="hint">按 ← → 切换</span></div>${state.toast?`<div class="toast show">${esc(state.toast)}</div>`:''}`;}
-// Keep direct links, mobile preview and new decisions consistent across pages.
-state.screen=location.hash.slice(1)||'command';
-const renderPage=render;
-render=function(){renderPage();document.body.classList.toggle('mobile-preview',state.mobile);};
-const recordDecision=decide;
-decide=function(value){state.ready=false;recordDecision(value);};
-const recordCorrection=saveCorrection;
-saveCorrection=function(){state.ready=false;recordCorrection();};
-window.addEventListener('hashchange',()=>{state.screen=location.hash.slice(1)||'command';render()});render();
+import { Client } from './api.js';
+import { makeDemo } from './demo.js';
+import { demoQuery, demoRoute } from './demo-query.js';
+import { state, entities, entity, canWrite, clearResults, resetSelection } from './state.js';
+import { esc, icon, notify, options } from './ui.js';
+import * as view from './views.js';
+import * as bench from './workbench.js';
+import { detachMap, mountMap, updateMap, fitMap, focusMap, zoomMap } from './gis.js';
+import { detachScene, mountScene } from './scene.js';
+import { cameraPayload } from './camera.js';
+
+const pages = {
+  command: bench.command,
+  import: view.importPage,
+  analysis: bench.analysis,
+  review: bench.review,
+  registration: view.registration,
+  plans: view.plans,
+  reason: view.reason,
+  field: view.field,
+};
+const app = document.querySelector('#app'),
+  dialog = document.querySelector('#dialog');
+const datasetPath = () => {
+  if (!state.dataset) throw new Error('请先选择或建立一个现场。');
+  return '/spatial/datasets/' + encodeURIComponent(state.dataset.id);
+};
+const requireLive = () => {
+  if (!state.client) throw new Error('当前为离线演练。请点击「连接设置」连接后端，再执行此操作。');
+  return state.client;
+};
+function render() {
+  const context =
+    state.screen +
+    '|' +
+    (state.client?.base || 'demo') +
+    '|' +
+    state.identity.user_id +
+    '|' +
+    state.dataset?.id +
+    '|' +
+    (state.screen === 'review'
+      ? state.annotationId +
+        '|' +
+        state.annotations.find((a) => a.id === state.annotationId)?.status
+      : '');
+  const drafts = render.context === context ? captureQueryForms() : [];
+  detachMap();
+  detachScene();
+  app.innerHTML = view.shell((pages[state.screen] || pages.command)());
+  for (const draft of drafts) {
+    const form = document.getElementById(draft.id);
+    if (!form) continue;
+    if (draft.conditions) form.querySelector('#conditions').innerHTML = draft.conditions;
+    const controls = [...form.querySelectorAll('input,select,textarea')];
+    draft.values.forEach((v, i) => {
+      const c = controls[i];
+      if (c && (c.tagName !== 'SELECT' || [...c.options].some((o) => o.value === v))) c.value = v;
+    });
+  }
+  render.context = context;
+  hydrateImages();
+  mountMap();
+  mountScene();
+  hydrateReview();
+}
+function captureQueryForms() {
+  return ['ask-form', 'route-form', 'reason-form', 'review-form']
+    .map((id) => document.getElementById(id))
+    .filter(Boolean)
+    .map((f) => ({
+      id: f.id,
+      conditions: f.querySelector('#conditions')?.innerHTML,
+      values: [...f.querySelectorAll('input,select,textarea')].map((c) => c.value),
+    }));
+}
+async function hydrateReview() {
+  if (state.screen !== 'review') return;
+  const a = state.annotations.find((a) => a.id === state.annotationId);
+  if (!a) return;
+  const overlay = document.querySelector('.annotation-canvas .box-overlay');
+  if (overlay) {
+    const field = (n) => Number(document.querySelector('#review-form [name=' + n + ']')?.value);
+    const box = overlay.querySelector('rect');
+    box.setAttribute('x', field('x_min') * 100);
+    box.setAttribute('y', field('y_min') * 100);
+    box.setAttribute('width', (field('x_max') - field('x_min')) * 100);
+    box.setAttribute('height', (field('y_max') - field('y_min')) * 100);
+  }
+  if (overlay && state.compareBoxes) {
+    const b = a.annotation.bbox;
+    overlay.insertAdjacentHTML(
+      'beforeend',
+      '<rect class="original-box" x="' +
+        b.x_min * 100 +
+        '" y="' +
+        b.y_min * 100 +
+        '" width="' +
+        (b.x_max - b.x_min) * 100 +
+        '" height="' +
+        (b.y_max - b.y_min) * 100 +
+        '"/>',
+    );
+  }
+  if (state.client && a.status === 'pending_review' && state.leaseKey !== a.id) {
+    state.leaseKey = a.id;
+    state.lease = null;
+    state.leaseKnown = false;
+    const client = state.client;
+    try {
+      const result = await client.request('/spatial/annotations/' + a.id + '/lease');
+      if (state.client === client && state.annotationId === a.id) {
+        state.lease = result.lease;
+        state.leaseKnown = true;
+        render();
+      }
+    } catch (e) {
+      state.leaseKey = null;
+      notify('无法读取审核占用状态，请刷新后重试。', true);
+    }
+  }
+}
+async function hydrateImages() {
+  const client = state.client;
+  if (!client) return;
+  await Promise.allSettled(
+    [...document.querySelectorAll('img[data-image]')].map(async (image) => {
+      try {
+        const url = await client.image(image.dataset.image);
+        if (image.isConnected && state.client === client) image.src = url;
+      } catch (e) {
+        if (image.isConnected) {
+          const msg = document.createElement('p');
+          msg.className = 'image-error';
+          msg.textContent = '图片读取失败，请刷新重试。';
+          image.replaceWith(msg);
+        }
+      }
+    }),
+  );
+}
+async function work(fn) {
+  if (state.busy) return;
+  state.busy = true;
+  state.error = '';
+  const buttons = [...document.querySelectorAll('button')].filter((b) => !b.disabled);
+  buttons.forEach((b) => (b.disabled = true));
+  document.querySelector('main')?.setAttribute('aria-busy', 'true');
+  notify('正在处理，请稍候…');
+  try {
+    await fn();
+    state.busy = false;
+    render();
+    notify('操作完成。');
+  } catch (e) {
+    state.busy = false;
+    state.error = e.message;
+    buttons.forEach((b) => (b.disabled = false));
+    document.querySelector('main')?.setAttribute('aria-busy', 'false');
+    notify(e.message, true);
+    if (dialog.open) {
+      let error = dialog.querySelector('[role=alert]');
+      if (!error) {
+        error = document.createElement('p');
+        error.setAttribute('role', 'alert');
+        error.className = 'error-banner';
+        dialog.append(error);
+      }
+      error.textContent = e.message;
+    }
+  }
+}
+async function loadDataset(id, client = state.client) {
+  if (!id) return { dataset: null, images: [], annotations: [], artifacts: [] };
+  const path = '/spatial/datasets/' + encodeURIComponent(id);
+  const results = await Promise.allSettled([
+    client.request(path),
+    client.list(path + '/images', 'images'),
+    client.list(path + '/annotations', 'annotations'),
+    client.list(path + '/artifacts', 'artifacts'),
+  ]);
+  const failure = results.find((r) => r.status === 'rejected');
+  if (failure) throw failure.reason;
+  const [dataset, images, annotations, artifacts] = results.map((r) => r.value);
+  return { dataset, images, annotations, artifacts };
+}
+async function refresh() {
+  if (!state.client) return;
+  const data = await loadDataset(state.dataset?.id);
+  Object.assign(state, data);
+  state.leaseKey = null;
+  state.lease = null;
+  state.leaseKnown = false;
+  if (!state.fixedTime) state.asOf = new Date().toISOString();
+  clearResults();
+}
+function go(screen) {
+  location.hash = screen;
+}
+function modal(html) {
+  dialog.innerHTML =
+    '<button type="button" class="dialog-close icon-button" data-action="close-dialog" aria-label="关闭">' +
+    icon('close') +
+    '</button>' +
+    html;
+  dialog.showModal();
+}
+function connectDialog() {
+  modal(
+    '<span class="eyebrow">WORKSPACE CONNECTION</span><h2>连接你的指挥台后端</h2><p class="muted">个人令牌仅保存在当前页面内存中。刷新页面后需要重新连接。</p><form id="connect-form"><label>后端地址<input name="base" type="url" required value="' +
+      esc(state.client?.base || 'http://127.0.0.1:8000') +
+      '"></label><label>个人访问令牌<input name="token" type="password" autocomplete="off" placeholder="本机 local 模式可留空"></label><button class="button primary full">连接并读取现场</button></form><p class="meta">跨域部署需在后端 DISASTER_CORS_ORIGINS 中允许当前页面来源。团队远程连接使用 HTTPS。</p>' +
+      (state.client
+        ? '<button class="button danger full" data-action="disconnect">断开连接，回到离线演练</button>'
+        : ''),
+  );
+}
+function datasetsDialog() {
+  if (!state.client) {
+    connectDialog();
+    return;
+  }
+  modal(
+    '<h2>选择工作现场</h2><form id="select-dataset-form"><label>当前工作空间内的现场<select name="id" required>' +
+      options(
+        state.datasets.map((d) => [d.id, d.snapshot.title]),
+        state.dataset?.id,
+      ) +
+      '</select></label><button class="button primary full" ' +
+      (!state.datasets.length ? 'disabled' : '') +
+      '>打开现场</button></form><p class="muted">没有现场时，可到「资料导入」建立地图快照。</p>',
+  );
+}
+async function readJSON(file) {
+  if (!file?.size) throw new Error('请选择 JSON 文件。');
+  if (file.size > 7000000) throw new Error('JSON 超过 7 MB，请缩小文件。');
+  try {
+    return JSON.parse(await file.text());
+  } catch {
+    throw new Error('JSON 格式无效，请检查文件后重试。');
+  }
+}
+function download(kind) {
+  const demo = makeDemo(),
+    mapping = {
+      networks: 'road_network',
+      registrations: 'registration',
+      relations: 'relation_set',
+    };
+  const payload =
+    kind === 'dataset'
+      ? demo.dataset.snapshot
+      : demo.artifacts.find((a) => a.artifact_type === mapping[kind]).snapshot;
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+  );
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'exercise-' + kind + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function query() {
+  if (state.client && !state.fixedTime) state.asOf = new Date().toISOString();
+  const payload = {
+    center_entity_id: state.center,
+    radius_m: state.radius,
+    kind: 'entrance',
+    observation: 'obstacle_visible',
+    as_of: state.asOf,
+    max_age_hours: state.hours,
+  };
+  state.answer = state.client
+    ? await state.client.request(datasetPath() + '/query', payload)
+    : demoQuery(payload);
+}
+function setSelection(id) {
+  state.selected = id;
+  const ann = state.annotations.find(
+    (a) => (a.review?.approved_annotation || a.annotation).entity_id === id,
+  );
+  if (ann) state.cameraImage = ann.image_id;
+  render();
+  focusMap(id);
+}
+const actions = {
+  'toggle-branch': (button) => {
+    const collapsed = new Set(state.collapsedBranches || []);
+    collapsed.has(button.dataset.id)
+      ? collapsed.delete(button.dataset.id)
+      : collapsed.add(button.dataset.id);
+    state.collapsedBranches = [...collapsed];
+    render();
+  },
+  connect: connectDialog,
+  'close-dialog': () => dialog.close(),
+  datasets: () =>
+    work(async () => {
+      if (state.client) state.datasets = await state.client.list('/spatial/datasets', 'datasets');
+      datasetsDialog();
+    }),
+  disconnect: () => {
+    state.client?.dispose();
+    Object.assign(state, makeDemo(), {
+      client: null,
+      datasets: [],
+      identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
+    });
+    resetSelection();
+    dialog.close();
+    render();
+  },
+  refresh: () => work(refresh),
+  'dismiss-error': () => {
+    state.error = '';
+    render();
+  },
+  select: (b) => setSelection(b.dataset.id),
+  annotation: (b) => {
+    state.annotationId = b.dataset.id;
+    state.reviewFilter = 'all';
+    state.minConfidence = 0;
+    state.reviewLabel = 'all';
+    state.leaseKey = null;
+    go('review');
+  },
+  'review-select': (b) => {
+    state.annotationId = b.dataset.id;
+    state.lease = null;
+    state.leaseKey = null;
+    state.leaseKnown = false;
+    render();
+  },
+  'map-view': (b) => {
+    state.mapView = b.dataset.value;
+    render();
+  },
+  zoom: (b) => {
+    state.zoom =
+      b.dataset.value === 'reset'
+        ? 1
+        : Math.min(4, Math.max(0.4, state.zoom * Number(b.dataset.value)));
+    render();
+  },
+  point: (b) => {
+    state.point = b.dataset.id;
+    render();
+  },
+  download: (b) => download(b.dataset.kind),
+  query: () => work(query),
+  'add-condition': () => {
+    const holder = document.querySelector('#conditions');
+    if (holder.children.length < 12)
+      holder.insertAdjacentHTML('beforeend', view.conditionRow(holder.children.length));
+  },
+  'remove-condition': (b) => {
+    if (document.querySelectorAll('.condition-row').length > 1)
+      b.closest('.condition-row').remove();
+  },
+  'toggle-layers': () => {
+    state.showLayers = !state.showLayers;
+    render();
+  },
+  'toggle-intel': () => {
+    state.showIntel = !state.showIntel;
+    render();
+  },
+  'fit-map': fitMap,
+  'focus-center': () => focusMap(state.center),
+  'gis-zoom': (b) => zoomMap(Number(b.dataset.value)),
+  'reset-radius': () => {
+    state.radius = 100;
+    clearResults();
+    render();
+  },
+  'close-pip': () => {
+    state.cameraImage = null;
+    render();
+  },
+  'review-filter': (b) => {
+    state.reviewFilter = b.dataset.value;
+    state.annotationId = bench.reviewRows()[0]?.id;
+    state.leaseKey = null;
+    render();
+  },
+  'review-reset': () => {
+    state.reviewFilter = 'all';
+    state.reviewLabel = 'all';
+    state.minConfidence = 0;
+    render();
+  },
+  'gallery-status': (b) => {
+    state.galleryStatus = b.dataset.value;
+    render();
+  },
+  'image-zoom': (b) => {
+    state.imageZoom = Math.min(3, Math.max(0.5, state.imageZoom + Number(b.dataset.value)));
+    render();
+  },
+  'draw-box': () => {
+    state.drawBox = !state.drawBox;
+    render();
+  },
+  'compare-boxes': () => {
+    state.compareBoxes = !state.compareBoxes;
+    render();
+  },
+  'time-now': () => {
+    stopPlayback();
+    state.timelineBase = Date.now();
+    state.endAge = 0;
+    state.fixedTime = false;
+    state.asOf = new Date().toISOString();
+    clearResults();
+    render();
+  },
+  'play-time': () => {
+    if (state.playing) {
+      stopPlayback();
+      render();
+      return;
+    }
+    state.playing = true;
+    if (!state.endAge) state.endAge = Math.max(1, 72 - state.hours);
+    playback = setInterval(() => {
+      state.endAge = Math.max(0, state.endAge - 1);
+      setTimeWindow();
+      if (!state.endAge) stopPlayback();
+      render();
+    }, 1100);
+    render();
+  },
+  lease: (b) =>
+    work(async () => {
+      const a = state.annotations.find((a) => a.id === state.annotationId);
+      if (!a) return;
+      if (state.client) {
+        const held =
+          state.lease &&
+          new Date(state.lease.expires_at) > new Date() &&
+          state.lease.user_id !== state.identity.user_id;
+        const result = await state.client.request(
+          '/spatial/annotations/' + a.id + '/' + (held ? 'lease' : b.dataset.value),
+          held ? undefined : {},
+        );
+        state.lease = result.lease;
+      } else
+        state.lease =
+          b.dataset.value === 'release'
+            ? null
+            : {
+                user_id: state.identity.user_id,
+                expires_at: new Date(Date.now() + 300000).toISOString(),
+              };
+      state.leaseKey = a.id;
+      state.leaseKnown = true;
+    }),
+  citation: (b) => {
+    const evidence = state.answer?.evidence || state.answer;
+    const citations =
+      evidence?.citations || evidence?.matches?.flatMap((m) => m.image_citations) || [];
+    const c = citations[Number(b.dataset.index)];
+    if (!c) return;
+    state.selected = c.entity_id || c.annotation.entity_id;
+    state.cameraImage = c.image_id;
+    state.activeCitation = Number(b.dataset.index);
+    render();
+    focusMap(state.selected);
+    document
+      .querySelector('.citation[data-index="' + b.dataset.index + '"]')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+  analyze: (b) =>
+    work(async () => {
+      const client = requireLive(),
+        id = b.dataset.id;
+      const key = crypto.randomUUID();
+      const result = await client.request(
+        '/spatial/images/' + encodeURIComponent(id) + '/analyze',
+        {},
+        { 'Idempotency-Key': key },
+      );
+      await refresh();
+      state.annotationId = result.annotations[0]?.id || state.annotationId;
+      state.screen = 'review';
+      history.replaceState(null, '', '#review');
+    }),
+};
+let playback;
+function stopPlayback() {
+  clearInterval(playback);
+  state.playing = false;
+}
+function setTimeWindow() {
+  state.hours = Math.max(1, Math.min(72 - state.endAge, state.hours));
+  state.asOf = new Date(state.timelineBase - state.endAge * 3600000).toISOString();
+  state.fixedTime = true;
+  clearResults();
+}
+window.addEventListener('gis-select', (e) => setSelection(e.detail));
+window.addEventListener('camera-select', (e) => {
+  state.cameraImage = e.detail;
+  const ann = state.annotations.find((a) => a.image_id === e.detail);
+  if (ann) state.selected = (ann.review?.approved_annotation || ann.annotation).entity_id;
+  render();
+});
+window.addEventListener('scene-point', (e) => {
+  state.point = e.detail;
+  render();
+});
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-action]');
+  if (!b || b.disabled || state.busy) return;
+  actions[b.dataset.action]?.(b);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.matches('svg [role="button"]') && ['Enter', ' '].includes(e.key)) {
+    e.preventDefault();
+    e.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (
+    state.screen !== 'review' ||
+    state.busy ||
+    dialog.open ||
+    e.target.closest('input,textarea,select,[contenteditable=true]')
+  )
+    return;
+  const rows = bench.reviewRows(),
+    index = rows.findIndex((a) => a.id === state.annotationId);
+  if (['ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    e.preventDefault();
+    const next = rows[index + (e.key === 'ArrowRight' ? 1 : -1)];
+    if (next) {
+      state.annotationId = next.id;
+      state.leaseKey = null;
+      state.leaseKnown = false;
+      state.lease = null;
+      render();
+    }
+  }
+  const form = document.querySelector('#review-form');
+  if (!form) return;
+  if (['1', '2', '3'].includes(e.key)) {
+    const select = form.querySelector('[name=observation]');
+    if (!select.disabled) {
+      select.value = ['obstacle_visible', 'no_obstacle_visible', 'unknown'][Number(e.key) - 1];
+      e.preventDefault();
+    }
+  }
+  if ([' ', 'Backspace'].includes(e.key)) {
+    const button = form.querySelector('[value="' + (e.key === ' ' ? 'approve' : 'reject') + '"]');
+    if (button && !button.disabled) {
+      e.preventDefault();
+      form.requestSubmit(button);
+    }
+  }
+});
+let drawing;
+document.addEventListener('pointerdown', (e) => {
+  const photo = e.target.closest('.annotation-canvas .evidence-photo');
+  if (!photo || !state.drawBox || e.button !== 0 || state.busy) return;
+  const form = document.querySelector('#review-form');
+  if (form?.querySelector('fieldset').disabled) return;
+  const rect = photo.getBoundingClientRect();
+  drawing = {
+    photo,
+    rect,
+    start: [(e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height],
+  };
+  photo.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drawing) return;
+  const { rect, start, photo } = drawing,
+    clamp = (v) => Math.max(0, Math.min(1, v)),
+    x = clamp((e.clientX - rect.left) / rect.width),
+    y = clamp((e.clientY - rect.top) / rect.height);
+  const box = {
+    x_min: Math.min(start[0], x),
+    y_min: Math.min(start[1], y),
+    x_max: Math.max(start[0], x),
+    y_max: Math.max(start[1], y),
+  };
+  for (const [key, value] of Object.entries(box))
+    document.querySelector('#review-form [name=' + key + ']').value = value.toFixed(3);
+  const overlay = photo.querySelector('.box-overlay rect');
+  overlay.setAttribute('x', box.x_min * 100);
+  overlay.setAttribute('y', box.y_min * 100);
+  overlay.setAttribute('width', (box.x_max - box.x_min) * 100);
+  overlay.setAttribute('height', (box.y_max - box.y_min) * 100);
+});
+document.addEventListener('pointerup', () => {
+  drawing = null;
+});
+document.addEventListener('pointercancel', () => {
+  drawing = null;
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'entity-search') {
+    const start = e.target.selectionStart;
+    state.search = e.target.value;
+    render();
+    const input = document.querySelector('#entity-search');
+    input.focus();
+    input.setSelectionRange(start, start);
+  }
+  if (['windowStart', 'endAge'].includes(e.target.dataset.control)) {
+    const value = Number(e.target.value);
+    if (e.target.dataset.control === 'windowStart') state.hours = Math.max(1, value - state.endAge);
+    else {
+      const startAge = state.hours + state.endAge;
+      state.endAge = Math.min(startAge - 1, value);
+      state.hours = startAge - state.endAge;
+      e.target.value = state.endAge;
+    }
+    setTimeWindow();
+    updateMap();
+  }
+});
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (state.busy) return;
+  if (t.dataset.galleryLabel) {
+    const labels = new Set(
+      state.galleryLabels || ['obstacle_visible', 'no_obstacle_visible', 'unknown'],
+    );
+    t.checked ? labels.add(t.dataset.galleryLabel) : labels.delete(t.dataset.galleryLabel);
+    state.galleryLabels = [...labels];
+    render();
+    return;
+  }
+  if (t.dataset.layer) {
+    state.layers[t.dataset.layer] = t.checked;
+    render();
+    return;
+  }
+  const key = t.dataset.control;
+  if (!key) return;
+  if (key === 'basemap') state.basemap = t.checked;
+  else if (key === 'windowStart' || key === 'endAge') {
+    setTimeWindow();
+  } else if (key === 'galleryConfidence') {
+    state.galleryConfidence = Number(t.value);
+  } else if (key === 'minConfidence') {
+    state.minConfidence = Number(t.value);
+    state.annotationId = bench.reviewRows()[0]?.id;
+    state.leaseKey = null;
+  } else if (key === 'reviewLabel') {
+    state.reviewLabel = t.value;
+    state.annotationId = bench.reviewRows()[0]?.id;
+    state.leaseKey = null;
+  } else if (key === 'registration') {
+    state.artifactId = t.value;
+    state.point = '';
+  } else if (key === 'asOf') {
+    if (!t.value) return;
+    state.asOf = new Date(t.value).toISOString();
+    state.fixedTime = true;
+    clearResults();
+  } else if (['radius', 'hours', 'angle'].includes(key)) {
+    state[key] = Number(t.value);
+    if (key !== 'angle') clearResults();
+  } else {
+    state[key] = t.value;
+    clearResults();
+  }
+  render();
+});
+
+const submits = {
+  'connect-form': async (f, d) => {
+    const candidate = new Client(d.get('base'), d.get('token').trim());
+    try {
+      const identity = await candidate.request('/auth/me');
+      const datasets = await candidate.list('/spatial/datasets', 'datasets');
+      const data = await loadDataset(datasets[0]?.id, candidate);
+      state.client?.dispose();
+      Object.assign(state, data, { client: candidate, identity, datasets, search: '' });
+      resetSelection();
+      dialog.close();
+    } catch (e) {
+      candidate.dispose();
+      throw e;
+    }
+  },
+  'select-dataset-form': async (f, d) => {
+    Object.assign(state, await loadDataset(d.get('id')));
+    resetSelection();
+    dialog.close();
+  },
+  'dataset-form': async (f, d) => {
+    const client = requireLive();
+    const payload = await readJSON(d.get('file'));
+    const result = await client.request('/spatial/datasets', payload);
+    state.datasets = await client.list('/spatial/datasets', 'datasets');
+    Object.assign(state, await loadDataset(result.id));
+    resetSelection();
+  },
+  'image-form': async (f, d) => {
+    const client = requireLive(),
+      file = d.get('file');
+    if (!file.size || file.size > 5000000 || !['image/png', 'image/jpeg'].includes(file.type))
+      throw new Error('请选择不超过 5 MB 的 PNG 或 JPEG 图片。');
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = () => reject(new Error('读取图片失败，请重新选择文件。'));
+      reader.readAsDataURL(file);
+    });
+    await client.request(datasetPath() + '/images', {
+      name: file.name,
+      captured_at: new Date(d.get('captured_at')).toISOString(),
+      source: d.get('source'),
+      evidence_basis: d.get('evidence_basis'),
+      mime_type: file.type,
+      content_base64: base64,
+      camera_pose: cameraPayload(d),
+    });
+    await refresh();
+  },
+  'ask-form': async (f, d) => {
+    const client = requireLive(),
+      kind = d.get('kind');
+    if (kind === 'references/search') {
+      state.references = await client.request(datasetPath() + '/' + kind, {
+        query: d.get('question'),
+        max_results: 5,
+      });
+    } else {
+      const answer = await client.request(datasetPath() + '/' + kind, {
+        question: d.get('question'),
+      });
+      state.answer = answer;
+    }
+  },
+  'route-form': async (f, d) => {
+    const payload = {
+      network_id: d.get('network_id'),
+      start_entity_id: d.get('start_entity_id'),
+      end_entity_id: d.get('end_entity_id'),
+      mode: d.get('mode'),
+      as_of: new Date(d.get('as_of')).toISOString(),
+    };
+    state.route = state.client
+      ? await state.client.request(datasetPath() + '/route', payload)
+      : demoRoute(payload);
+  },
+  'review-form': async (f, d, decision) => {
+    const a = state.annotations.find((r) => r.id === state.annotationId);
+    if (!a) throw new Error('未找到候选，请刷新后重试。');
+    if (!d.get('note')?.trim()) throw new Error('请填写审核或撤回说明。');
+    const payload = { reviewer: state.identity.user_id, note: d.get('note') };
+    if (decision !== 'withdraw') payload.action = decision;
+    if (decision === 'approve') {
+      const bbox = Object.fromEntries(
+        ['x_min', 'y_min', 'x_max', 'y_max'].map((k) => [k, Number(d.get(k))]),
+      );
+      if (bbox.x_min >= bbox.x_max || bbox.y_min >= bbox.y_max)
+        throw new Error('标注框的最小坐标必须小于最大坐标。');
+      payload.corrected_annotation = {
+        ...a.annotation,
+        entity_id: d.get('entity_id'),
+        observation: d.get('observation'),
+        description: d.get('description'),
+        bbox,
+      };
+    }
+    if (state.client) {
+      await state.client.request(
+        '/spatial/annotations/' + a.id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
+        payload,
+      );
+      await refresh();
+    } else {
+      a.status = { approve: 'approved', reject: 'rejected', withdraw: 'withdrawn' }[decision];
+      if (decision !== 'withdraw')
+        a.review = {
+          ...payload,
+          approved_annotation: decision === 'approve' ? payload.corrected_annotation : null,
+          created_at: new Date().toISOString(),
+        };
+      clearResults();
+    }
+  },
+  'artifact-form': async (f, d) => {
+    const client = requireLive();
+    const payload = await readJSON(d.get('file'));
+    const record = await client.request(datasetPath() + '/' + f.dataset.kind, payload);
+    await refresh();
+    if (f.dataset.kind === 'registrations') state.artifactId = record.id;
+  },
+  'artifact-review-form': async (f, d, decision) => {
+    const id = f.dataset.id,
+      note = d.get('note');
+    if (state.client) {
+      await state.client.request(
+        '/spatial/artifacts/' + id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
+        decision === 'withdraw'
+          ? { note, reviewer: state.identity.user_id }
+          : { action: decision, note },
+      );
+      await refresh();
+    } else {
+      const a = state.artifacts.find((r) => r.id === id);
+      a.status = { approve: 'approved', reject: 'rejected', withdraw: 'withdrawn' }[decision];
+      if (decision !== 'withdraw')
+        a.review = { reviewer: state.identity.user_id, note, created_at: new Date().toISOString() };
+      clearResults();
+    }
+  },
+  'reason-form': async (f, d) => {
+    const client = requireLive();
+    const all_of = [...f.querySelectorAll('.condition-row')].map((row) => {
+      const relation = row.querySelector('[name=relation]').value;
+      return {
+        relation,
+        reference_entity_id: row.querySelector('[name=reference]').value,
+        ...(relation === 'near'
+          ? { distance_m: Number(row.querySelector('[name=distance]').value) }
+          : {}),
+      };
+    });
+    const payload = { all_of, as_of: state.asOf, mode: d.get('mode'), max_age_hours: state.hours };
+    for (const k of ['kind', 'network_id', 'relation_set_id', 'registration_id'])
+      if (d.get(k)) payload[k] = d.get(k);
+    state.answer = await client.request(datasetPath() + '/reason', payload);
+  },
+  'observation-form': async (f, d) => {
+    const client = requireLive();
+    await client.request(datasetPath() + '/annotations', {
+      image_id: d.get('image_id'),
+      source_note: d.get('source_note'),
+      annotation: {
+        entity_id: d.get('entity_id'),
+        observation: d.get('observation'),
+        description: d.get('description'),
+        confidence: 0,
+        bbox: { x_min: 0, y_min: 0, x_max: 1, y_max: 1 },
+      },
+    });
+    await refresh();
+  },
+};
+document.addEventListener('submit', (e) => {
+  const fn = submits[e.target.id] || submits[[...e.target.classList].find((c) => submits[c])];
+  if (!fn) return;
+  e.preventDefault();
+  const data = new FormData(e.target),
+    decision = e.submitter?.value;
+  work(() => fn(e.target, data, decision));
+});
+window.addEventListener('hashchange', () => {
+  const route = location.hash.slice(1);
+  if (route === 'main') return;
+  stopPlayback();
+  state.screen = pages[route] ? route : 'command';
+  render();
+  document.querySelector('#main')?.focus({ preventScroll: true });
+});
+state.screen = pages[location.hash.slice(1)] ? location.hash.slice(1) : 'command';
+render();

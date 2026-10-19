@@ -1,0 +1,2 @@
+# Preserve upstream vendor bytes and hashes on Windows; do not rewrite upstream indentation.
+frontend/vendor/** text eol=lf whitespace=-space-before-tab linguist-vendored

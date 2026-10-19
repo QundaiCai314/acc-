@@ -9,6 +9,10 @@ from uuid import uuid4
 from .access import attributed, principal
 
 
+class ReviewLeaseConflict(Exception):
+    pass
+
+
 class Store:
     def __init__(self, path: Path):
         self.path = path
@@ -16,7 +20,7 @@ class Store:
         with closing(self.connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version not in (0, 1, 2):
+            if version not in (0, 1, 2, 3):
                 raise RuntimeError(f'Unsupported database version: {version}; explicit migration required')
             db.execute('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS decisions (plan_id TEXT PRIMARY KEY REFERENCES records(id), body TEXT NOT NULL)')
@@ -30,7 +34,10 @@ class Store:
             db.execute('CREATE TABLE IF NOT EXISTS rate_limits (bucket TEXT PRIMARY KEY, window INTEGER NOT NULL, count INTEGER NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS operations (workspace TEXT NOT NULL, scope TEXT NOT NULL, '
                        'key TEXT NOT NULL, status TEXT NOT NULL, body TEXT, PRIMARY KEY (workspace, scope, key))')
-            db.execute('PRAGMA user_version = 2')
+            db.execute('CREATE TABLE IF NOT EXISTS review_leases ('
+                       'annotation_id TEXT PRIMARY KEY REFERENCES records(id), workspace TEXT NOT NULL, '
+                       'user_id TEXT NOT NULL, expires_at REAL NOT NULL)')
+            db.execute('PRAGMA user_version = 3')
         with closing(self.connect()) as db:
             db.execute('PRAGMA journal_mode = WAL')
 
@@ -86,12 +93,50 @@ class Store:
     def decide(self, plan_id: str, body: dict) -> dict:
         record = {**attributed(body), 'plan_id': plan_id, 'created_at': datetime.now(timezone.utc).isoformat()}
         with closing(self.connect()) as db, db:
+            db.execute('BEGIN IMMEDIATE')
             if db.execute("SELECT 1 FROM records WHERE id = ? "
                           "AND COALESCE(json_extract(body, '$.workspace_id'), 'default') = ?",
                           (plan_id, principal.get().workspace)).fetchone() is None:
                 raise sqlite3.IntegrityError('Decision target not in workspace')
+            lease = db.execute('SELECT user_id FROM review_leases WHERE annotation_id=? AND expires_at>?',
+                               (plan_id, time.time())).fetchone()
+            if lease and lease[0] != principal.get().user_id:
+                raise ReviewLeaseConflict('Another reviewer holds this annotation; refresh after the lease expires')
             db.execute('INSERT INTO decisions VALUES (?, ?)', (plan_id, json.dumps(record, ensure_ascii=False)))
+            db.execute('DELETE FROM review_leases WHERE annotation_id=?', (plan_id,))
         return record
+
+    def review_lease(self, annotation_id: str):
+        with closing(self.connect()) as db:
+            row = db.execute('SELECT user_id, expires_at FROM review_leases '
+                             'WHERE annotation_id=? AND workspace=? AND expires_at>?',
+                             (annotation_id, principal.get().workspace, time.time())).fetchone()
+        return {'user_id': row[0], 'expires_at': datetime.fromtimestamp(row[1], timezone.utc).isoformat()} if row else None
+
+    def claim_review(self, annotation_id: str):
+        actor, now = principal.get(), time.time()
+        with closing(self.connect()) as db, db:
+            db.execute('BEGIN IMMEDIATE')
+            if db.execute("SELECT 1 FROM records WHERE id=? AND kind='annotation' AND "
+                          "COALESCE(json_extract(body,'$.workspace_id'),'default')=?",
+                          (annotation_id, actor.workspace)).fetchone() is None:
+                raise ReviewLeaseConflict('Annotation unavailable in this workspace')
+            if db.execute('SELECT 1 FROM decisions WHERE plan_id=?', (annotation_id,)).fetchone():
+                raise ReviewLeaseConflict('Annotation has already been reviewed')
+            lease = db.execute('SELECT user_id, expires_at FROM review_leases WHERE annotation_id=?',
+                               (annotation_id,)).fetchone()
+            if lease and lease[1] > now and lease[0] != actor.user_id:
+                raise ReviewLeaseConflict('Annotation is held by another reviewer')
+            expires = now + 300
+            db.execute('INSERT INTO review_leases VALUES (?, ?, ?, ?) ON CONFLICT(annotation_id) '
+                       'DO UPDATE SET user_id=excluded.user_id, expires_at=excluded.expires_at',
+                       (annotation_id, actor.workspace, actor.user_id, expires))
+        return {'user_id': actor.user_id, 'expires_at': datetime.fromtimestamp(expires, timezone.utc).isoformat()}
+
+    def release_review(self, annotation_id: str):
+        with closing(self.connect()) as db, db:
+            db.execute('DELETE FROM review_leases WHERE annotation_id=? AND workspace=? AND user_id=?',
+                       (annotation_id, principal.get().workspace, principal.get().user_id))
 
     def decision(self, plan_id: str) -> dict | None:
         with closing(self.connect()) as db:

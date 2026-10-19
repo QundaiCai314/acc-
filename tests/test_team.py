@@ -70,6 +70,55 @@ class TeamTests(unittest.TestCase):
         self.config_path.write_text('invalid', encoding='utf-8')
         self.assertEqual(self.client.get(url, headers=self.auth('admin')).status_code, 503)
 
+    def test_review_lease_is_atomic_scoped_and_blocks_other_reviewers(self):
+        _, candidate = self.annotation()
+        base = f'/spatial/annotations/{candidate}'
+        self.assertEqual(self.client.post(base+'/claim', headers=self.auth('viewer')).status_code, 403)
+        self.assertEqual(self.client.get(base+'/lease', headers=self.auth('admin', 'other')).status_code, 404)
+        def claim(role):
+            return role, self.client.post(base+'/claim', headers=self.auth(role)).status_code
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = dict(pool.map(claim, ['reviewer', 'admin']))
+        self.assertEqual(sorted(results.values()), [200, 409])
+        winner = next(role for role, code in results.items() if code == 200)
+        loser = next(role for role, code in results.items() if code == 409)
+        decision = {'reviewer': 'forged', 'action': 'approve', 'note': 'checked'}
+        self.assertEqual(self.client.post(base+'/review', headers=self.auth(loser), json=decision).status_code, 409)
+        self.client.post(base+'/release', headers=self.auth(loser))
+        self.assertEqual(self.client.get(base+'/lease', headers=self.auth()).json()['lease']['user_id'], winner)
+        with closing(self.client.app.state.store.connect()) as db, db:
+            db.execute('UPDATE review_leases SET expires_at=0 WHERE annotation_id=?', (candidate,))
+        self.assertEqual(self.client.post(base+'/claim', headers=self.auth(loser)).status_code, 200)
+        self.assertEqual(self.client.post(base+'/review', headers=self.auth(loser), json=decision).status_code, 201)
+        self.assertIsNone(self.client.get(base+'/lease', headers=self.auth()).json()['lease'])
+        self.assertEqual(self.client.post(base+'/claim', headers=self.auth(winner)).status_code, 409)
+
+    def test_camera_pose_is_optional_validated_and_kept_with_evidence(self):
+        payload = {'name': 'pose.png', 'captured_at': '2026-10-19T00:00:00Z', 'source': 'test',
+                   'evidence_basis': 'exercise', 'mime_type': 'image/png', 'content_base64': PNG,
+                   'camera_pose': {'coordinates': {'latitude': 0, 'longitude': 0}, 'heading_deg': 315,
+                                   'horizontal_fov_deg': 65, 'position_basis': 'exercise', 'source_note': 'synthetic'}}
+        path = f'/spatial/datasets/{self.ds}/images'
+        invalid = copy.deepcopy(payload)
+        invalid['camera_pose']['heading_deg'] = 360
+        self.assertEqual(self.client.post(path, headers=self.auth('contributor'), json=invalid).status_code, 422)
+        result = self.client.post(path, headers=self.auth('contributor'), json=payload)
+        self.assertEqual(result.status_code, 201, result.text)
+        image = self.client.get('/spatial/images/'+result.json()['id'], headers=self.auth()).json()
+        self.assertEqual(image['camera_pose']['heading_deg'], 315)
+        self.assertIsNone(image['camera_pose']['altitude_m'])
+        candidate = self.client.post(f'/spatial/datasets/{self.ds}/annotations', headers=self.auth('contributor'), json={
+            'image_id': image['id'], 'source_note': 'synthetic pose', 'annotation': {
+                'entity_id': 'entrance-near', 'observation': 'obstacle_visible', 'description': 'test',
+                'confidence': .8, 'bbox': {'x_min': 0, 'y_min': 0, 'x_max': 1, 'y_max': 1}}}).json()['id']
+        self.assertEqual(self.client.post(f'/spatial/annotations/{candidate}/review', headers=self.auth('reviewer'),
+            json={'reviewer': 'ignored', 'action': 'approve', 'note': 'checked'}).status_code, 201)
+        evidence = self.client.post(f'/spatial/datasets/{self.ds}/query', headers=self.auth(), json={
+            'center_entity_id': 'building-a', 'radius_m': 100, 'as_of': '2026-10-19T01:00:00Z',
+            'max_age_hours': 24, 'kind': 'entrance', 'observation': 'obstacle_visible'})
+        self.assertEqual(evidence.status_code, 200, evidence.text)
+        self.assertEqual(evidence.json()['citations'][0]['camera_pose'], image['camera_pose'])
+
     def test_workspace_isolation_including_images_reviews_and_legacy(self):
         image, candidate = self.annotation()
         urls = [f'/spatial/datasets/{self.ds}', f'/spatial/datasets/{self.ds}/annotations',

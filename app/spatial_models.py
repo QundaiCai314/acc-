@@ -42,6 +42,17 @@ class Dataset(StrictModel):
         return self
 
 
+class CameraPose(StrictModel):
+    coordinates: Coordinates
+    altitude_m: float | None = Field(default=None, ge=-1000, le=10000)
+    heading_deg: float = Field(ge=0, lt=360)
+    pitch_deg: float = Field(default=0, ge=-90, le=90)
+    horizontal_fov_deg: float = Field(gt=0, lt=179)
+    vertical_fov_deg: float = Field(default=45, gt=0, lt=179)
+    position_basis: Literal['exercise', 'measured']
+    source_note: Text
+
+
 class ImageInput(StrictModel):
     name: str = Field(min_length=1, max_length=200)
     captured_at: datetime
@@ -49,6 +60,7 @@ class ImageInput(StrictModel):
     evidence_basis: Literal['exercise', 'field_image']
     mime_type: Literal['image/png', 'image/jpeg']
     content_base64: str = Field(min_length=1, max_length=7_000_000)
+    camera_pose: CameraPose | None = None
 
     @model_validator(mode='after')
     def valid_image(self):
@@ -165,6 +177,7 @@ class Citation(StrictModel):
     reviewer: str
     review_note: str
     reviewed_at: datetime
+    camera_pose: CameraPose | None = None
 
 
 class SpatialAnswer(StrictModel):

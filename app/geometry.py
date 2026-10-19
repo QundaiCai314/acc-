@@ -225,6 +225,7 @@ def evidence_records(store, dataset_id, as_of, max_age_hours=None):
                                 'image_url': f'/spatial/images/{image["id"]}/content',
                                 'captured_at': image['captured_at'], 'source': image['source'],
                                 'evidence_basis': image['evidence_basis'], 'annotation': review['approved_annotation'],
+                                'camera_pose': image.get('camera_pose'),
                                 'reviewer': review['reviewer'], 'reviewed_at': review['created_at']}
     return result
 

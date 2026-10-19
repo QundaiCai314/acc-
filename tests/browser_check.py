@@ -44,13 +44,15 @@ def main():
         page.locator('[data-layer=objects]').check()
         expect(page.locator('.geo-label')).not_to_have_count(0)
         page.get_by_role('button', name='关闭图层', exact=True).click()
-        page.get_by_role('button', name='关系图', exact=True).click()
+        page.get_by_role('button', name='关系', exact=True).click()
         expect(page.locator('.relation-inset .relation-active')).to_have_count(2)
-        page.get_by_role('button', name='关闭关系图', exact=True).click()
+        page.get_by_role('button', name='关闭关系图谱', exact=True).click()
         page.get_by_role('button', name='播放时间窗口', exact=True).click()
         page.wait_for_function("document.querySelector('[data-control=endAge]').value < 48")
         page.get_by_role('button', name='暂停时间播放', exact=True).click()
         page.get_by_role('button', name='回到现在', exact=True).click()
+        if not page.locator('[data-window=objects]').count():
+            page.get_by_role('button', name='对象', exact=True).click()
         page.get_by_role('button', name='检索已审核障碍物').click()
         expect(page.locator('.answer')).to_contain_text('已审核障碍物记录')
         page.locator('input[data-control=windowStart]').fill('1')
@@ -148,6 +150,8 @@ def main():
         page.get_by_role('button', name='批准 / 修正').click()
         expect(page.locator('.review-editor .panel-heading')).to_contain_text('已审核', timeout=15000)
         page.goto(args.url + '/#command')
+        if not page.locator('[data-window=objects]').count():
+            page.get_by_role('button', name='对象', exact=True).click()
         page.get_by_role('button', name='检索已审核障碍物').click()
         expect(page.locator('.answer')).to_contain_text('人工修正：', timeout=15000)
         page.locator('#question').fill('A 楼 100 米内哪些入口有障碍物？')
@@ -185,6 +189,8 @@ def main():
         page.get_by_role('button', name='增加条件', exact=False).click()
         rows = page.locator('.condition-row')
         rows.nth(1).locator('[name=relation]').select_option('part_of')
+        # The workspace retains query drafts, including an earlier empty snapshot selection.
+        page.locator('#reason-form [name=relation_set_id]').select_option(index=1)
         page.get_by_role('button', name='执行联合查询').click()
         expect(page.locator('.answer')).to_contain_text('东入口', timeout=15000)
         assert page.locator('.condition-row').count() == 2, 'Keep submitted query conditions visible'

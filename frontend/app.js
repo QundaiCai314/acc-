@@ -8,6 +8,7 @@ import * as bench from './workbench.js';
 import { detachMap, mountMap, updateMap, fitMap, focusMap, zoomMap } from './gis.js';
 import { detachScene, mountScene } from './scene.js';
 import { cameraPayload } from './camera.js';
+import { compose, mountWindows } from './workspace.js';
 
 const pages = {
   command: bench.command,
@@ -21,6 +22,7 @@ const pages = {
 };
 const app = document.querySelector('#app'),
   dialog = document.querySelector('#dialog');
+const formDrafts = new Map();
 const datasetPath = () => {
   if (!state.dataset) throw new Error('请先选择或建立一个现场。');
   return '/spatial/datasets/' + encodeURIComponent(state.dataset.id);
@@ -44,10 +46,15 @@ function render() {
         '|' +
         state.annotations.find((a) => a.id === state.annotationId)?.status
       : '');
-  const drafts = render.context === context ? captureQueryForms() : [];
+  if (render.context) {
+    const saved = new Map((formDrafts.get(render.context) || []).map((draft) => [draft.id, draft]));
+    for (const draft of captureQueryForms()) saved.set(draft.id, draft);
+    formDrafts.set(render.context, [...saved.values()]);
+  }
+  const drafts = formDrafts.get(context) || [];
   detachMap();
   detachScene();
-  app.innerHTML = view.shell((pages[state.screen] || pages.command)());
+  app.innerHTML = view.shell(compose(pages));
   for (const draft of drafts) {
     const form = document.getElementById(draft.id);
     if (!form) continue;
@@ -62,10 +69,11 @@ function render() {
   hydrateImages();
   mountMap();
   mountScene();
+  mountWindows();
   hydrateReview();
 }
 function captureQueryForms() {
-  return ['ask-form', 'route-form', 'reason-form', 'review-form']
+  return ['ask-form', 'quick-question', 'route-form', 'reason-form', 'review-form']
     .map((id) => document.getElementById(id))
     .filter(Boolean)
     .map((f) => ({
@@ -261,6 +269,7 @@ function download(kind) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 async function query() {
+  state.showIntel = true;
   if (state.client && !state.fixedTime) state.asOf = new Date().toISOString();
   const payload = {
     center_entity_id: state.center,
@@ -276,6 +285,7 @@ async function query() {
 }
 function setSelection(id) {
   state.selected = id;
+  state.showIntel = true;
   const ann = state.annotations.find(
     (a) => (a.review?.approved_annotation || a.annotation).entity_id === id,
   );
@@ -284,6 +294,77 @@ function setSelection(id) {
   focusMap(id);
 }
 const actions = {
+  'toggle-objects': () => {
+    state.showObjects = !state.showObjects;
+    render();
+  },
+  'toggle-time': () => {
+    state.showTimeline = !state.showTimeline;
+    render();
+  },
+  'toggle-graph': () => {
+    state.mapView = state.mapView === 'graph' ? 'map' : 'graph';
+    render();
+  },
+  'close-graph': () => {
+    state.mapView = 'map';
+    render();
+  },
+  'close-tool': () => {
+    state.expandedTool = false;
+    go('command');
+  },
+  'expand-tool': () => {
+    state.expandedTool = !state.expandedTool;
+    render();
+  },
+  'minimize-window': (button) => {
+    const id = button.dataset.windowId,
+      window = button.closest('[data-window]');
+    const minimized = {
+      id,
+      title: window.querySelector('h1,h2').textContent,
+      route: state.screen,
+      image: state.cameraImage,
+    };
+    state.minimizedWindows = [
+      ...(state.minimizedWindows || []).filter((w) => w.id !== id),
+      minimized,
+    ];
+    const field = {
+      objects: 'showObjects',
+      layers: 'showLayers',
+      time: 'showTimeline',
+      intel: 'showIntel',
+    }[id];
+    if (field) state[field] = false;
+    if (id === 'photo') state.cameraImage = null;
+    if (id === 'graph') state.mapView = 'map';
+    if (id === 'tool') {
+      go('command');
+      return;
+    }
+    render();
+  },
+  'restore-window': (button) => {
+    const id = button.dataset.windowId,
+      saved = state.minimizedWindows.find((w) => w.id === id);
+    state.minimizedWindows = state.minimizedWindows.filter((w) => w.id !== id);
+    const field = {
+      objects: 'showObjects',
+      layers: 'showLayers',
+      time: 'showTimeline',
+      intel: 'showIntel',
+    }[id];
+    if (field) state[field] = true;
+    if (id === 'photo') state.cameraImage = saved.image;
+    if (id === 'graph') state.mapView = 'graph';
+    if (id === 'tool') {
+      go(saved.route);
+      return;
+    }
+    render();
+  },
   'toggle-branch': (button) => {
     const collapsed = new Set(state.collapsedBranches || []);
     collapsed.has(button.dataset.id)
@@ -522,6 +603,8 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keydown', (e) => {
   if (
     state.screen !== 'review' ||
+    e.defaultPrevented ||
+    e.target.closest('.window-bar') ||
     state.busy ||
     dialog.open ||
     e.target.closest('input,textarea,select,[contenteditable=true]')
@@ -671,6 +754,14 @@ document.addEventListener('change', (e) => {
 });
 
 const submits = {
+  'quick-question': async (form, data) => {
+    const question = data.get('question');
+    state.showIntel = true;
+    render();
+    document.querySelector('#question').value = question;
+    if (state.client)
+      state.answer = await state.client.request(datasetPath() + '/ask', { question });
+  },
   'connect-form': async (f, d) => {
     const candidate = new Client(d.get('base'), d.get('token').trim());
     try {

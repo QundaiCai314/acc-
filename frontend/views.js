@@ -25,16 +25,6 @@ import { cameraFields } from './camera.js';
 import { sceneControls } from './scene.js';
 import { mapPanel } from './map.js';
 
-export const navigation = [
-  ['command', 'map', '现场态势'],
-  ['import', 'upload', '资料导入'],
-  ['analysis', 'scan', 'AI 分析'],
-  ['review', 'shield', '证据审核'],
-  ['registration', 'cube', '三维配准'],
-  ['plans', 'route', '路网检索'],
-  ['reason', 'link', '空间推理'],
-  ['field', 'image', '现场回报'],
-];
 const entityOptions = (selected) =>
   options(
     entities().map((e) => [e.id, e.name]),
@@ -59,16 +49,36 @@ const panel = (name, body, sub = '') =>
   '</div></section>';
 export function shell(content) {
   const pending = state.annotations.filter((a) => a.status === 'pending_review').length;
+  const modes = [
+    ['command', 'map', '地图工作台', ['command']],
+    ['analysis', 'image', '素材与审核', ['analysis', 'import', 'review', 'field']],
+    ['plans', 'route', '空间分析', ['plans', 'reason']],
+    ['registration', 'cube', '三维核验', ['registration']],
+  ];
   return (
-    '<header class="topbar"><a href="#command" class="brand"><span class="brand-mark">△</span><span>DISASTER<span class="brand-light">COMMANDER</span></span></a><span class="top-divider"></span><span class="workspace">' +
-    icon('layers') +
-    esc(state.identity.workspace) +
-    '</span><div class="top-right">' +
+    '<header class="topbar"><a href="#command" class="brand"><span class="brand-mark">△</span><span>DISASTER<span class="brand-light">COMMANDER</span></span></a><nav class="primary-modes" aria-label="工作流程">' +
+    modes
+      .map(
+        ([id, symbol, name, routes]) =>
+          '<a href="#' +
+          id +
+          '" ' +
+          (routes.includes(state.screen) ? 'aria-current="page"' : '') +
+          '>' +
+          icon(symbol) +
+          '<span>' +
+          name +
+          '</span>' +
+          (id === 'analysis' && pending ? '<b>' + pending + '</b>' : '') +
+          '</a>',
+      )
+      .join('') +
+    '</nav><div class="top-right">' +
     badge(state.client ? 'approved' : 'pending_review', state.client ? '后端已连接' : '离线演练') +
-    '<button class="connection" data-action="connect">' +
+    '<button class="connection" data-action="connect" aria-label="连接设置">' +
     icon('settings') +
     '<span>连接设置</span></button><span class="user-avatar">' +
-    esc(state.identity.user_id.slice(0, 1).toUpperCase()) +
+    esc(state.identity.user_id.slice(0, 1)) +
     '</span><span class="user-name">' +
     esc(state.identity.user_id) +
     '<small>' +
@@ -77,30 +87,11 @@ export function shell(content) {
         state.identity.role
       ],
     ) +
-    '</small></span></div></header><div class="app-layout"><nav class="rail" aria-label="工作台导航">' +
-    navigation
-      .map(
-        ([id, i, label]) =>
-          '<a href="#' +
-          id +
-          '" class="nav-item ' +
-          (state.screen === id ? 'active' : '') +
-          '" aria-label="' +
-          label +
-          '" ' +
-          (state.screen === id ? 'aria-current="page"' : '') +
-          '>' +
-          icon(i) +
-          '<span>' +
-          label +
-          '</span>' +
-          (id === 'review' && pending ? '<b class="nav-count">' + pending + '</b>' : '') +
-          '</a>',
-      )
-      .join('') +
-    '<span class="rail-bottom">v0.3</span></nav><div class="workspace-body"><div class="contextbar"><div><span class="live-dot"></span><strong>' +
+    '</small></span></div></header><div class="workspace-body"><div class="contextbar"><div><span class="live-dot"></span><strong>' +
     esc(state.dataset?.snapshot.title || '尚未选择现场') +
-    '</strong><span class="context-label">地震救援演练</span></div><div><button class="text-button" data-action="refresh" ' +
+    '</strong></div><div><span class="workspace-label">' +
+    esc(state.identity.workspace) +
+    '</span><button class="text-button" data-action="refresh" ' +
     disabled(!state.busy) +
     '>' +
     icon('refresh') +
@@ -112,16 +103,16 @@ export function shell(content) {
         icon('close') +
         '</button></div>'
       : '') +
-    (state.busy ? '<div class="loading-line" role="status">正在处理请求，请稍候…</div>' : '') +
     '<main id="main" tabindex="-1" aria-busy="' +
     state.busy +
     '">' +
     content +
     '</main><footer class="statusbar"><span>' +
     icon('shield') +
-    ' ' +
-    (state.client ? '审核由后端校验 · 冲突返回后请刷新' : '演练沙盒 · 操作仅在当前页面内生效') +
-    '</span><span>观察证据 ≠ 当前通行安全 <i class="dot mint"></i></span></footer></div></div>'
+    (state.client
+      ? '审核由后端校验 · 当前工作空间 ' + esc(state.identity.workspace)
+      : '演练沙盒 · 操作仅在当前页面内生效') +
+    '</span><span>观察证据 ≠ 当前通行安全</span></footer></div>'
   );
 }
 export function evidencePhoto(ann) {
@@ -464,7 +455,7 @@ export function registration() {
     '</div>'
   );
 }
-export function plans() {
+export function plans(embedded = false) {
   const nets = state.artifacts.filter(
       (a) => a.artifact_type === 'road_network' && a.status === 'approved',
     ),
@@ -477,7 +468,7 @@ export function plans() {
       '按审核路网计算路径，排除封闭、未知与通行方式不匹配的道路。',
     ) +
     '<div class="route-layout"><div>' +
-    mapPanel() +
+    (embedded ? '' : mapPanel()) +
     '</div>' +
     panel(
       '路径检索',

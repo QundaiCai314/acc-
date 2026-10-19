@@ -23,6 +23,7 @@ def main():
             result = page.evaluate("async () => (await axe.run(document, {runOnly:{type:'tag', values:['wcag2a','wcag2aa','wcag21aa']}})).violations")
             results.append({'route': route, 'violations': result})
         page.goto(args.url + '/#command')
+        page.get_by_role('button', name='对象', exact=True).click()
         page.locator('.entity-row[data-id=building-a]').focus()
         page.keyboard.press('Enter')
         assert page.locator('.object-summary h2').inner_text().startswith('A 楼')

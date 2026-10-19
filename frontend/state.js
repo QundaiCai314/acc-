@@ -86,10 +86,12 @@ export function selectedRelationPaths() {
 }
 Object.assign(state, {
   showLayers: false,
-  showIntel: true,
+  showIntel: false,
+  showObjects: false,
+  showTimeline: true,
   showGraph: true,
   basemap: true,
-  cameraImage: 'img-east',
+  cameraImage: null,
   hoverCamera: null,
   endAge: 0,
   timelineBase: Date.now(),

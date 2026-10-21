@@ -63,9 +63,18 @@ def main():
                 expect(page.get_by_role('button', name='注册 · 未开放')).to_be_disabled()
                 expect(page.get_by_role('button', name='Continue with Google · 未接入')).to_be_disabled()
                 expect(page.get_by_role('button', name='Continue with Apple · 未接入')).to_be_disabled()
-                page.get_by_role('button', name='背景配色 2', exact=True).click()
-                expect(page.locator('.ds-login-right')).to_have_attribute('data-slide', '1')
-                page.get_by_role('button', name='背景配色 1', exact=True).click()
+                expect(page.get_by_role('button', name='主视觉 2（待补充）', exact=True)).to_be_disabled()
+                expect(page.get_by_role('button', name='主视觉 3（待补充）', exact=True)).to_be_disabled()
+                expect(page.get_by_role('button', name='主视觉 4（待补充）', exact=True)).to_be_disabled()
+                page.get_by_role('button', name='主视觉 1', exact=True).click()
+                art = page.locator('.ds-login-art')
+                expect(art).to_be_visible()
+                assert art.evaluate('(img) => img.complete && img.naturalWidth === 1086 && img.naturalHeight === 1448')
+                rect = page.locator('.ds-login-right').bounding_box()
+                image_rect = art.bounding_box()
+                assert all(abs(rect[k] - image_rect[k]) < 1 for k in ('x', 'y', 'width', 'height')), (rect, image_rect)
+                if width > 860:
+                    assert abs(rect['width'] - width / 2) < 1, rect
                 if theme == 'vellum' and width in (320, 1440):
                     page.screenshot(path=str(output / ('login-mobile.png' if width == 320 else 'login-desktop.png')), full_page=True)
                 page.goto('http://127.0.0.1:8080/#command')

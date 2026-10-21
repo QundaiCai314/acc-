@@ -68,7 +68,7 @@
 
 api.js 管请求，state.js 管会话状态；workbench.js 提供地图/审核/数据集工作台，views.js 提供其余页面及证据组件；workspace.js / workspace.css 将这些组件组织为分组工作流和浮动窗口，维护拖动、边界和前后层级；gis.js 和 scene.js 管渲染生命周期，map.js 提供关系图与降级概览；app.js 绑定业务交互。demo.js / demo-query.js 隔离合成数据。
 
-atlas.css 在 workspace.css 后加载，管理导入设计的三套主题与布局适配；login.js / login.css 管理登录页，复用 app.js 的真实连接流程。业务模块仍分文件维护，MapLibre / Three 保留本地固定版本，不加载参考 HTML 内的 CDN 脚本。
+atlas.css 在 workspace.css 后加载，管理导入设计的三套主题与布局适配；login.js / login.css 管理登录页，复用 app.js 的真实连接流程。登录主视觉 ⑤-1 使用用户提供的 default (2).jfif，原始 JPEG 内容直接保存为 assets/login-hero-01.jpg（1086 × 1448，3:4）；桌面等比裁切铺满右侧 50%，手机按 3:4 显示。⑤-2 至 ⑤-4 保留并禁用，待提供对应素材后启用。业务模块仍分文件维护，MapLibre / Three 保留本地固定版本，不加载参考 HTML 内的 CDN 脚本。
 
 可选浏览器开发依赖不加入后端运行依赖：
 
@@ -79,7 +79,7 @@ atlas.css 在 workspace.css 后加载，管理导入设计的三套主题与布�
 
 脚本启动临时 team 后端并在完成后关闭；数据库在系统临时目录，固定测试令牌只用于该进程。模型和搜索使用测试桩，不调用实际供应商、不验证识别质量。浏览器仍可能请求地图瓦片。
 
-覆盖登录失败/成功/刷新清除身份、八个工作台页面 × 320/768/1024/1440 宽度、地图与时间交互、拖框与审核意见保留、控制点、图片筛选、实际 FastAPI 认证链路下的上传/审核/问答/三类工件导入/推理、租约、409、权限、隔离与 HTML 转义。theme_check.py 另检查三套主题中的登录页布局、禁用入口、背景配色和可选 axe-core 对比度。截图输出到 Git 忽略的 data/frontend-check/。
+覆盖登录失败/成功/刷新清除身份、八个工作台页面 × 320/768/1024/1440 宽度、地图与时间交互、拖框与审核意见保留、控制点、图片筛选、实际 FastAPI 认证链路下的上传/审核/问答/三类工件导入/推理、租约、409、权限、隔离与 HTML 转义。theme_check.py 另检查三套主题中的登录页布局、禁用入口、主视觉加载与画幅覆盖和可选 axe-core 对比度。截图输出到 Git 忽略的 data/frontend-check/。
 
 workspace_check.py 单独验证整条标题栏拖动、方向键移动、边界限制、收起/恢复、放大/还原及审核草稿保留；不需要后端。
 

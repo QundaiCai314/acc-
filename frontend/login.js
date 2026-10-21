@@ -27,8 +27,10 @@ export function loginPage() {
     '<a class="ds-demo-link" href="#command">' + (state.client ? '返回已连接的工作台' : '进入离线演练 →') + '</a>' +
     '<p class="ds-terms">' + (state.client ? '当前账号：' + esc(state.identity.user_id) : '离线演练使用合成示例，不代表已登录团队。') + '</p>' +
     '</form></div></section>' +
-    '<aside class="ds-login-right" data-slide="0" aria-label="主视觉展陈区"><div class="ds-carousel-bars" role="group" aria-label="背景配色">' +
+    '<aside class="ds-login-right" data-slide="0" aria-label="主视觉展陈区">' +
+    '<img class="ds-login-art" src="assets/login-hero-01.jpg" width="1086" height="1448" alt="浅绿色建筑模型与黄色空间控制点艺术图" fetchpriority="high">' +
+    '<div class="ds-carousel-bars" role="group" aria-label="主视觉轮播">' +
     [0, 1, 2, 3].map(i => '<button type="button" class="ds-carousel-bar" data-action="login-slide" data-value="' + i +
-      '" aria-pressed="' + (i === 0) + '" aria-label="背景配色 ' + (i + 1) + '"></button>').join('') +
+      '" aria-pressed="' + (i === 0) + '" aria-label="主视觉 ' + (i + 1) + (i ? '（待补充）" disabled' : '"') + '></button>').join('') +
     '</div></aside></div>';
 }

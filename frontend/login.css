@@ -1,0 +1,425 @@
+/* Login layout restored from the user-supplied HTML. */
+.ds-login-stage {
+  color-scheme: light;
+  min-height: 100dvh;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
+  color: #18181b;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  position: relative;
+}
+.ds-floating-Switch {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(24, 24, 27, 0.88);
+  color: #f4f4f5;
+  border-radius: 6px;
+  font-size: 11px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(8px);
+}
+.ds-floating-Switch button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #d4d4d8;
+  background: transparent;
+  border: 1px solid transparent;
+}
+.ds-floating-Switch button[aria-pressed='true'] {
+  background: #ffea47;
+  color: #18181b;
+  font-weight: 600;
+}
+.ds-floating-Switch button.ds-enter-workspace {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  margin-left: 2px;
+}
+.ds-floating-Switch button.ds-enter-workspace:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+.ds-login-left {
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 32px;
+}
+.ds-login-box {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ds-logo-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #ffee32;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  position: relative;
+}
+.ds-icon-blank { display: inline-block; width: 16px; height: 16px; flex-shrink: 0; }
+.ds-empty-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgba(24, 24, 27, 0.38);
+  border-radius: 3px;
+  color: rgba(24, 24, 27, 0.58);
+  font-size: 9px;
+  font-family: Consolas, monospace;
+  line-height: 1;
+  user-select: none;
+  flex-shrink: 0;
+}
+.ds-empty-slot.slot-logo {
+  width: 30px;
+  height: 30px;
+}
+.ds-empty-slot.slot-icon-sm {
+  width: 16px;
+  height: 16px;
+  border-color: #a1a1aa;
+  color: #71717a;
+  font-size: 8px;
+}
+.ds-login-title {
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+  color: #18181b !important;
+  letter-spacing: -0.01em !important;
+  margin: 0 0 20px !important;
+  text-align: center;
+}
+.ds-mode-tabs {
+  width: 196px;
+  height: 36px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 28px;
+  background: #efefef;
+}
+.ds-mode-tabs button {
+  font-size: 12px;
+  font-weight: 500;
+  border: 0;
+  border-radius: 0;
+  height: 100%;
+  color: #27272a;
+  background: #efefef;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.ds-mode-tabs button[aria-pressed='true'] {
+  background: #1c1c1c;
+  color: #ffffff;
+}
+.ds-mode-tabs button:hover:not([aria-pressed='true']) {
+  background: #e4e4e7;
+  color: #18181b;
+}
+.ds-form {
+  width: 100%;
+  text-align: left;
+}
+.ds-field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #27272a;
+  margin: 0 0 8px;
+}
+.ds-field-label + .ds-field-label {
+  margin-top: 16px;
+}
+.ds-input-wrap {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+}
+.ds-input {
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  background: #efefef !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  padding: 0 12px !important;
+  font-size: 12.5px !important;
+  color: #18181b !important;
+  box-shadow: none !important;
+}
+.ds-input.with-Slot {
+  padding-right: 40px !important;
+}
+.ds-input::placeholder {
+  color: #a1a1aa;
+}
+.ds-input:focus {
+  background: #f4f4f5 !important;
+  border-color: #d4d4d8 !important;
+  box-shadow: 0 0 0 2px rgba(255, 234, 71, 0.45) !important;
+  outline: none !important;
+}
+.ds-eye-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+}
+.ds-eye-btn:hover {
+  color: #18181b;
+}
+.ds-utility-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: #52525b;
+}
+.ds-remember {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  font-size: 10.5px;
+  color: #52525b;
+  cursor: pointer;
+}
+.ds-remember input[type='checkbox'] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: #1c1c1c;
+}
+.ds-forgot {
+  font-size: 10.5px;
+  color: #52525b;
+  padding: 0;
+}
+.ds-forgot:hover {
+  color: #18181b;
+  text-decoration: underline;
+}
+.ds-submit-btn {
+  margin-top: 22px;
+  width: 100%;
+  height: 40px;
+  background: #ffea47;
+  color: #18181b;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.14s ease, transform 0.08s ease;
+}
+.ds-submit-btn:hover:not(:disabled) {
+  background: #f5dd29;
+  color: #09090b;
+}
+.ds-submit-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.ds-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 24px 0 20px;
+  color: #71717a;
+  font-size: 10px;
+}
+.ds-divider::before,
+.ds-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed #d4d4d8;
+}
+.ds-social-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.ds-social-btn {
+  width: 100%;
+  height: 40px;
+  background: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #18181b;
+  transition: background-color 0.14s ease, border-color 0.14s ease;
+}
+.ds-social-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #d4d4d8;
+  color: #09090b;
+}
+.ds-optout-row {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 22px !important;
+  margin-bottom: 0 !important;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #3f3f46;
+  cursor: pointer;
+}
+.ds-optout-row input[type='checkbox'] {
+  width: 13px;
+  height: 13px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: #1c1c1c;
+}
+.ds-terms {
+  margin-top: 16px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #52525b;
+  text-align: left;
+}
+.ds-inline-link {
+  padding: 0;
+  font-size: 11px;
+  color: #18181b;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ds-inline-link:hover {
+  color: #000000;
+}
+.ds-login-right {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(155deg, #b8dbd3 0%, #c7e0d8 46%, #d9dfd0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.ds-hero-placeholder {
+  width: min(420px, 84%);
+  aspect-ratio: 3 / 4;
+  border: 2px dashed rgba(24, 24, 27, 0.24);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 28px;
+  color: #273734;
+}
+.ds-hero-placeholder strong {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ds-hero-placeholder span {
+  font-size: 11.5px;
+  color: #3f5550;
+  line-height: 1.6;
+}
+.ds-hero-placeholder code {
+  margin-top: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.55);
+  font-family: Consolas, monospace;
+  font-size: 10.5px;
+  color: #1f2e2b;
+}
+.ds-carousel-bars {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  width: 72%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  z-index: 2;
+}
+.ds-carousel-bar {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.45);
+  padding: 0;
+  border: 0;
+  transition: background-color 0.2s ease;
+}
+.ds-carousel-bar[aria-pressed='true'],
+.ds-carousel-bar:hover {
+  background: #ffffff;
+}
+@media (max-width: 860px) {
+  .ds-login-stage {
+    grid-template-columns: 1fr;
+  }
+  .ds-login-right {
+    min-height: 380px;
+  }
+}
+
+/* Keep the imported layout independent of workspace theme overrides. */
+.ds-login-stage { min-height: 100dvh; }
+.ds-logo-circle svg { width: 28px; height: 28px; }
+.ds-login-box .ds-mode-tabs button:disabled,
+.ds-login-box .ds-social-btn:disabled { opacity: 1; color: #64646c; cursor: not-allowed; }
+.ds-login-box .ds-field-label { color: #27272a; }
+.ds-demo-link { display: block; margin-top: 24px; text-align: center; color: #27272a; text-decoration: underline; }
+.ds-login-error { margin: 12px 0 0; color: #a32217; font-size: 12px; overflow-wrap: anywhere; }
+.ds-login-error:empty { display: none; }
+.ds-login-stage button:focus-visible,
+.ds-login-stage a:focus-visible { outline: 2px solid #18181b; outline-offset: 4px; }
+.ds-login-right[data-slide='1'] { background: linear-gradient(155deg, #d9dfd0, #b8dbd3); }
+.ds-login-right[data-slide='2'] { background: linear-gradient(155deg, #d4dbe8, #becfc6); }
+.ds-login-right[data-slide='3'] { background: linear-gradient(155deg, #e2dac9, #c7e0d8); }
+.ds-carousel-bar { height: 24px; background: transparent; border-radius: 0; border-bottom: 3px solid #57736a; }
+.ds-carousel-bar[aria-pressed='true'],
+.ds-carousel-bar:hover { background: transparent; border-color: #263d35; }
+@media (max-width: 860px) {
+  .ds-login-left { padding: 48px 24px; }
+  .ds-login-right { min-height: 240px; }
+}

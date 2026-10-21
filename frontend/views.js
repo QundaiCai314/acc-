@@ -92,9 +92,9 @@ export function shell(content) {
     badge(state.client ? 'approved' : 'pending_review', state.client ? '后端已连接' : '离线演练') +
     '<button class="connection" data-action="connect" aria-label="连接设置">' +
     icon('settings') +
-    '<span>连接设置</span></button><span class="user-avatar">' +
+    '<span>连接设置</span></button><a class="user-avatar" href="#login" aria-label="打开登录页">' +
     esc(state.identity.user_id.slice(0, 1)) +
-    '</span><span class="user-name">' +
+    '</a><span class="user-name">' +
     esc(state.identity.user_id) +
     '<small>' +
     esc(

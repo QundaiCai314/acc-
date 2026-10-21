@@ -25,6 +25,8 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto(args.url)
         page.wait_for_load_state('networkidle')
+        expect(page.locator('.ds-login-title')).to_contain_text('AI Disaster Commander')
+        page.get_by_role('link', name='进入离线演练').click()
         expect(page.get_by_role('heading', name='现场态势', exact=True)).to_be_visible()
         # Full-page capture temporarily resizes WebGL canvases; capture the actual viewport.
         page.screenshot(path=str(output / 'command-desktop.png'))
@@ -113,7 +115,22 @@ def main():
             expect(page.locator('#dialog')).not_to_be_visible(timeout=15000)
             expect(page.locator('.topbar')).to_contain_text('后端已连接')
 
-        connect('frontend-test-admin')
+        # The restored full-page login must reject invalid tokens without entering a team workspace.
+        page.goto(args.url + '/#login')
+        page.locator('#connect-form [name=base]').fill(args.api)
+        page.locator('#login-token').fill('invalid-login-token')
+        page.get_by_role('button', name='显示令牌', exact=True).click()
+        expect(page.locator('#login-token')).to_have_value('invalid-login-token')
+        expect(page.locator('#login-token')).to_have_attribute('type', 'text')
+        page.get_by_role('button', name='隐藏令牌', exact=True).click()
+        page.get_by_role('button', name='登录工作台', exact=True).click()
+        expect(page.locator('#login-error')).to_contain_text('401', timeout=15000)
+        assert page.evaluate("async () => (await import('./state.js')).state.client === null")
+        expect(page.locator('#login-token')).to_have_value('invalid-login-token')
+        page.locator('#login-token').fill('frontend-test-admin')
+        page.get_by_role('button', name='登录工作台', exact=True).click()
+        expect(page.locator('.topbar')).to_contain_text('后端已连接', timeout=15000)
+        assert page.evaluate('!localStorage.length && !sessionStorage.length')
         expect(page.locator('.contextbar')).to_contain_text('尚未选择现场')
         page.goto(args.url + '/#import')
         dataset_file = output / 'map.json'
@@ -229,9 +246,16 @@ def main():
         page.evaluate("async () => {const {state}=await import('./state.js');state.dataset={id:'test',snapshot:{title:'<img src=x onerror=alert(1)>',entities:[]}};location.hash='field';}")
         expect(page.locator('.contextbar strong')).to_have_text('<img src=x onerror=alert(1)>')
         assert page.locator('.contextbar img').count() == 0
+        page.goto(args.url + '/#login')
+        expect(page.get_by_role('link', name='返回已连接的工作台')).to_be_visible()
+        expect(page.locator('#login-token')).to_have_value('')
+        page.reload()
+        expect(page.get_by_role('link', name='进入离线演练')).to_be_visible()
+        expect(page.locator('#login-token')).to_have_value('')
+        assert page.evaluate("async () => (await import('./state.js')).state.client === null")
         assert not errors, errors
         browser.close()
-    print('PASS: 32 responsive page checks; demo queries/review/route/3D; real team API upload, analysis fixture, review, query, artifacts, relation reasoning, permissions, isolation, escaping.')
+    print('PASS: login rejection/success/refresh; 32 responsive page checks; demo queries/review/route/3D; real team API upload, analysis fixture, review, query, artifacts, relation reasoning, permissions, isolation, escaping.')
     print('Screenshots: data/frontend-check/')
 
 

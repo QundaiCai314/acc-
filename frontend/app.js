@@ -9,8 +9,10 @@ import { detachMap, mountMap, updateMap, fitMap, focusMap, zoomMap } from './gis
 import { detachScene, mountScene } from './scene.js';
 import { cameraPayload } from './camera.js';
 import { compose, mountWindows } from './workspace.js';
+import { loginPage } from './login.js';
 
 const pages = {
+  login: loginPage,
   command: bench.command,
   import: view.importPage,
   analysis: bench.analysis,
@@ -55,6 +57,11 @@ function render() {
   document.documentElement.dataset.theme = state.artTheme;
   detachMap();
   detachScene();
+  if (state.screen === 'login') {
+    app.innerHTML = '<main id="main" tabindex="-1">' + loginPage() + '</main>';
+    render.context = context;
+    return;
+  }
   app.innerHTML = view.shell(compose(pages));
   for (const draft of drafts) {
     const form = document.getElementById(draft.id);
@@ -156,6 +163,8 @@ async function work(fn) {
   buttons.forEach((b) => (b.disabled = true));
   document.querySelector('main')?.setAttribute('aria-busy', 'true');
   notify('正在处理，请稍候…');
+  const loginError = document.querySelector('#login-error');
+  if (loginError) loginError.textContent = '';
   try {
     await fn();
     state.busy = false;
@@ -167,6 +176,7 @@ async function work(fn) {
     buttons.forEach((b) => (b.disabled = false));
     document.querySelector('main')?.setAttribute('aria-busy', 'false');
     notify(e.message, true);
+    if (loginError?.isConnected) loginError.textContent = e.message;
     if (dialog.open) {
       let error = dialog.querySelector('[role=alert]');
       if (!error) {
@@ -219,6 +229,7 @@ function connectDialog() {
     '<span class="eyebrow">WORKSPACE CONNECTION</span><h2>连接你的指挥台后端</h2><p class="muted">个人令牌仅保存在当前页面内存中。刷新页面后需要重新连接。</p><form id="connect-form"><label>后端地址<input name="base" type="url" required value="' +
       esc(state.client?.base || 'http://127.0.0.1:8000') +
       '"></label><label>个人访问令牌<input name="token" type="password" autocomplete="off" placeholder="本机 local 模式可留空"></label><button class="button primary full">连接并读取现场</button></form><p class="meta">跨域部署需在后端 DISASTER_CORS_ORIGINS 中允许当前页面来源。团队远程连接使用 HTTPS。</p>' +
+      '<button class="text-button" data-action="open-login">打开登录页 →</button>' +
       (state.client
         ? '<button class="button danger full" data-action="disconnect">断开连接，回到离线演练</button>'
         : ''),
@@ -295,6 +306,23 @@ function setSelection(id) {
   focusMap(id);
 }
 const actions = {
+  'open-login': () => {
+    dialog.close();
+    go('login');
+  },
+  'toggle-login-secret': (button) => {
+    const input = document.querySelector('#login-token');
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    button.setAttribute('aria-pressed', String(show));
+    button.setAttribute('aria-label', show ? '隐藏令牌' : '显示令牌');
+  },
+  'login-help': () => notify('请联系团队管理员创建账号或重新签发个人访问令牌。此页面不接收邮箱密码。'),
+  'login-slide': (button) => {
+    document.querySelector('.ds-login-right').dataset.slide = button.dataset.value;
+    for (const bar of document.querySelectorAll('.ds-carousel-bar'))
+      bar.setAttribute('aria-pressed', String(bar === button));
+  },
   'art-theme': (b) => {
     if (!['vellum', 'brutalist', 'mineral'].includes(b.dataset.value)) return;
     state.artTheme = b.dataset.value;
@@ -779,6 +807,7 @@ const submits = {
       Object.assign(state, data, { client: candidate, identity, datasets, search: '' });
       resetSelection();
       dialog.close();
+      if (state.screen === 'login') go('command');
     } catch (e) {
       candidate.dispose();
       throw e;
@@ -954,9 +983,9 @@ window.addEventListener('hashchange', () => {
   const route = location.hash.slice(1);
   if (route === 'main') return;
   stopPlayback();
-  state.screen = pages[route] ? route : 'command';
+  state.screen = pages[route] ? route : 'login';
   render();
   document.querySelector('#main')?.focus({ preventScroll: true });
 });
-state.screen = pages[location.hash.slice(1)] ? location.hash.slice(1) : 'command';
+state.screen = pages[location.hash.slice(1)] ? location.hash.slice(1) : 'login';
 render();

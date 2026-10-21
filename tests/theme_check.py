@@ -42,7 +42,7 @@ def main():
             expect(note).to_have_value('Theme change keeps reviewer draft')
             assert page.evaluate("async () => (await import('./state.js')).state.identity") == identity
             assert page.evaluate("document.activeElement.dataset.value") == theme
-            for route in ('command', 'import', 'analysis', 'review', 'registration', 'plans', 'reason', 'field'):
+            for route in ('login', 'command', 'import', 'analysis', 'review', 'registration', 'plans', 'reason', 'field'):
                 page.goto('http://127.0.0.1:8080/#' + route)
                 page.wait_for_load_state('networkidle')
                 if args.axe:
@@ -54,6 +54,20 @@ def main():
                     page.screenshot(path=str(output / f'atlas-{theme}-{route}.png'))
             for width in (320, 768, 1024, 1440):
                 page.set_viewport_size({'width': width, 'height': 1000})
+                page.goto('http://127.0.0.1:8080/#login')
+                expect(page.locator('.ds-login-title')).to_be_visible()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), ('login', theme, width)
+                for control in page.locator('#connect-form input, .ds-submit-btn').all():
+                    box = control.bounding_box()
+                    assert box and box['x'] >= 0 and box['x'] + box['width'] <= width + 1, ('login', theme, width, box)
+                expect(page.get_by_role('button', name='注册 · 未开放')).to_be_disabled()
+                expect(page.get_by_role('button', name='Continue with Google · 未接入')).to_be_disabled()
+                expect(page.get_by_role('button', name='Continue with Apple · 未接入')).to_be_disabled()
+                page.get_by_role('button', name='背景配色 2', exact=True).click()
+                expect(page.locator('.ds-login-right')).to_have_attribute('data-slide', '1')
+                page.get_by_role('button', name='背景配色 1', exact=True).click()
+                if theme == 'vellum' and width in (320, 1440):
+                    page.screenshot(path=str(output / ('login-mobile.png' if width == 320 else 'login-desktop.png')), full_page=True)
                 page.goto('http://127.0.0.1:8080/#command')
                 page.wait_for_load_state('networkidle')
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (theme, width)

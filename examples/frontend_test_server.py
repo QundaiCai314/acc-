@@ -13,6 +13,7 @@ import uvicorn
 
 from app import integrations, vision
 from app.main import create_app
+from app.passwords import hash_password
 from app.spatial_models import ProposalBatch, QueryIntent
 
 
@@ -47,6 +48,8 @@ def main():
                      ('admin', 'browser-test', 'frontend-test-admin'),
                      ('viewer', 'browser-test', 'frontend-test-viewer'),
                      ('admin', 'isolated-test', 'frontend-test-isolated')]]
+        for user in users:
+            user['password_hash'] = hash_password('frontend-test-password')
         config = directory / 'access.json'
         config.write_text(json.dumps({'users': users, 'requests_per_minute': 10000,
                                       'model_requests_per_minute': 100}), encoding='utf-8')

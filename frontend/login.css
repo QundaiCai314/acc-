@@ -344,6 +344,15 @@
   object-fit: cover;
   object-position: center;
 }
+.ds-login-right::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: clamp(48px, 8vw, 144px);
+  background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0.72) 24%, rgba(255, 255, 255, 0));
+  z-index: 1;
+  pointer-events: none;
+}
 .ds-hero-placeholder {
   width: min(420px, 84%);
   aspect-ratio: 3 / 4;
@@ -419,6 +428,16 @@
 .ds-demo-link { display: block; margin-top: 24px; text-align: center; color: #27272a; text-decoration: underline; }
 .ds-login-error { margin: 12px 0 0; color: #a32217; font-size: 12px; overflow-wrap: anywhere; }
 .ds-login-error:empty { display: none; }
+.ds-connection-options, .ds-token-options { width: 100%; color: #52525b; font-size: 11px; margin-top: 16px; }
+.ds-connection-options summary, .ds-token-options summary { cursor: pointer; padding: 6px 0; }
+.ds-login-stage summary { color: #27272a !important; }
+.ds-connection-options[open] summary, .ds-token-options[open] summary { margin-bottom: 12px; }
+.ds-token-options { text-align: center; }
+.ds-token-options form { margin-top: 8px; }
+.ds-session-card { display: grid; gap: 8px; width: 100%; padding: 14px; margin-bottom: 20px; background: #f5f6ef; font-size: 12px; }
+.ds-session-card small { color: #52525b; }
+.ds-session-card button { justify-self: start; }
+.ds-login-stage summary:focus-visible { outline: 2px solid #18181b; outline-offset: 4px; }
 .ds-login-stage button:focus-visible,
 .ds-login-stage a:focus-visible { outline: 2px solid #18181b; outline-offset: 4px; }
 .ds-login-right .ds-carousel-bars { padding: 8px 12px; background: rgba(255, 255, 255, 0.88); }
@@ -429,4 +448,10 @@
 @media (max-width: 860px) {
   .ds-login-left { padding: 48px 24px; }
   .ds-login-right { min-height: 0; aspect-ratio: 3 / 4; }
+  .ds-login-right::before {
+    inset: 0 0 auto;
+    width: 100%;
+    height: 80px;
+    background: linear-gradient(180deg, #fff, rgba(255, 255, 255, 0));
+  }
 }

@@ -16,6 +16,7 @@ from .spatial import router as spatial_router
 from .geometry import router as geometry_router
 from .integrations import router as integrations_router
 from .access import AccessConfig, AccessMiddleware, authorize, principal
+from .auth import router as auth_router
 from .settings import ConfigurationError
 
 
@@ -43,6 +44,7 @@ def create_app(db_path: Path | None = None, *, mode: str | None = None, access_c
     app.include_router(spatial_router)
     app.include_router(geometry_router)
     app.include_router(integrations_router)
+    app.include_router(auth_router)
 
     @app.exception_handler(ConfigurationError)
     async def invalid_provider_config(request, exc):

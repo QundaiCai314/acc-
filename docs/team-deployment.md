@@ -11,9 +11,12 @@ v0.3.0 支持同一服务上多个工作空间；各工作空间共享一个 SQL
 .venv/Scripts/python.exe -m app.manage --user reviewer --role reviewer --workspace default
 .venv/Scripts/python.exe -m app.manage --user reader --role viewer --workspace default
 .venv/Scripts/python.exe -m app.manage --user administrator --role admin --workspace default
+.venv/Scripts/python.exe -m app.manage --user operator --workspace default --set-password
 ~~~
 
-配置默认保存在 data/access.json，仅含令牌 SHA-256 摘要。令牌采用 32 字节随机数。账号管理命令应由单个本机管理员执行，配置文件原子替换，每次请求重新读取，因此撤销不依赖服务器重启。文件和整个 data 目录只应允许服务器账号及运维人员读取。
+最后一条命令在隐藏输入中设置或重置密码（12–256 字符），不会把密码放进命令参数或输出。新账号也可在创建命令中加 --set-password。修改已有账号的密码保留角色、个人令牌和启用状态；没有默认密码或自助注册。
+
+配置默认保存在 data/access.json，含令牌 SHA-256 摘要及可选的 PBKDF2-HMAC-SHA256 密码摘要（600000 次迭代、随机盐），不存储明文密码。个人令牌采用 32 字节随机数。账号管理命令应由单个本机管理员执行，配置文件原子替换，每次请求重新读取，因此撤销不依赖服务器重启。文件和整个 data 目录只应允许服务器账号及运维人员读取。
 
 | 角色 | 权限 |
 | --- | --- |
@@ -35,13 +38,16 @@ $env:DISASTER_CORS_ORIGINS = 'https://your-frontend.example'
 
 把本机端口放在 HTTPS 反向代理后，由代理设置连接数、请求头大小与超时；不要把令牌通过明文 HTTP 传输。CORS 必须列出实际前端来源，禁止通配符。服务之间使用同一块本地磁盘上的数据库，不放在网络共享盘。首次升级先停止旧进程，再备份和启动新版本，不混跑 v0.2.0 与 v0.3.0。
 
-API 请求头：Authorization: Bearer 用户令牌。GET /auth/me 返回当前用户、角色和工作空间。除 GET /health 外，包含 docs/openapi 在内的访问均要求身份；团队模式下 API 客户端或受控代理需为文档请求也携带令牌。local 模式可继续使用本机 Swagger 文档。
+API 请求头：Authorization: Bearer 用户令牌或登录会话。GET /auth/me 返回当前用户、角色和工作空间。仅 GET /health 和 POST /auth/login 允许匿名访问；包含 docs/openapi 在内的其他访问均要求身份。团队模式下 API 客户端或受控代理需为文档请求也携带令牌。local 模式可继续使用本机 Swagger 文档。
+
+网页登录：POST /auth/login 接受 JSON：{"user_id":"operator","workspace":"default","password":"用户密码"}，成功返回 access_token、token_type、expires_at、identity。会话有效期 8 小时，服务端 SQLite 仅保存令牌摘要，与原个人令牌共用角色与空间隔离。POST /auth/logout 撤销当前密码登录会话，所有角色均可退出。个人令牌连接时退出仅清除页面凭据，永久撤销仍由管理员完成。网页登录凭据和会话不写入浏览器存储；刷新页面需重新登录，没有刷新令牌或跨标签页单点退出。
 
 默认 local 模式拒绝非回环地址，不适用于反向代理部署；代理通常把请求转为回环地址，因此必须显式改为 team。team 配置缺失时启动失败，运行中配置损坏时拒绝请求，不降级为匿名。
 
 ## 限流、并发与重试
 
 - 默认每用户每分钟 120 次普通请求，另有 10 次模型/搜索请求额度；配置字段 requests_per_minute、model_requests_per_minute 可调整。SQLite 原子计数让多个 worker 共享额度。固定分钟窗口在边界附近允许短时突发，公网流量限制仍应由代理承担。
+- 匿名登录另限每来源地址每分钟 30 次、每账号与工作空间每分钟 10 次（含成功请求）；登录体上限 4 KB。代理部署时按 ASGI peer 计数，不信任任意转发头；同一代理后的用户可能共享地址额度，可在可信代理层补充来源限流。登录错误不区分账号不存在、禁用或密码错误。
 - 请求体实际接收上限 8 MB，包括无 Content-Length 的分块上传。图片原有解码后 5 MB 限制仍保留。单请求限额不能替代磁盘容量管理；存储配额尚未实现。
 - 审核和撤回有数据库唯一约束；并发重复操作一份成功，其余 409，不覆盖原记录。
 - 团队模式 POST /spatial/images/{id}/analyze 必须提供 Idempotency-Key（1–128 个英文字母、数字、短横线或下划线）。同一工作空间、图片和 key 的成功请求返回原结果；pending/failed 返回 409。崩溃或上游超时可能已计费，先检查再用新 key 明确重试。不会自动再次调用供应商。local 模式可选该头。
@@ -55,12 +61,12 @@ API 请求头：Authorization: Bearer 用户令牌。GET /auth/me 返回当前�
 .venv/Scripts/python.exe -m app.manage --user operator --workspace default --role contributor --rotate
 ~~~
 
-轮换会替换原令牌，旧令牌立即失效。正在执行的已认证请求不会被强行取消。客户端收到 401 后重新配置新令牌；不要无限自动重试。
+轮换会替换原令牌，旧令牌及登录会话立即失效。重置密码也会令旧登录会话失效。禁用账号后两种凭据均不可用。正在执行的已认证请求不会被强行取消。前端收到 401 后清除身份、现场缓存和草稿并返回登录页；不自动重试。会话过期后不可使用，过期行在下次创建会话时清理。
 
 升级前备份数据库、账户配置和本地供应商配置，备份视为敏感文件。可停止全部服务后复制数据库，或使用 SQLite 的 backup API 生成一致性备份；不能在 WAL 模式下只复制一个正在写入的 .db 文件。恢复先停服务，把数据库和配套配置恢复到同一路径，再重新启动并运行只读检查。
 
-schema 1/2 → 3 的变更保留记录，旧数据默认属于 default；schema 3 新增审核租约表。迁移发现历史重复撤回会失败，应先保存备份、人工核对冲突，而不是删除历史。schema 3 数据库不能由只支持 schema 2 的旧版程序打开；回退程序时同时恢复升级前备份，不能仅修改 user_version。
+schema 1/2/3 → 4 的变更保留记录，旧数据默认属于 default；schema 3 新增审核租约表，schema 4 新增登录会话表。迁移发现历史重复撤回会失败，应先保存备份、人工核对冲突，而不是删除历史。schema 4 数据库不能由只支持 schema 3 的旧版程序打开；回退程序时同时恢复升级前备份，不能仅修改 user_version。
 
 图片候选支持五分钟审核租约：GET /spatial/annotations/{id}/lease 查询，POST /claim 领取或续期，POST /release 释放自己的租约。只有 admin/reviewer 可领取。另一审核员持有未过期租约时，提交审核返回 409；成功审核清除租约。领取与审核写入在 SQLite 事务内检查，跨进程生效。没有租约时仍保留先提交成功者生效的乐观并发机制。前端通过「刷新」获取最新状态，没有后台自动续期或在线成员广播。
 
-当前适用于一个街区/园区、小团队和单机本地盘部署。没有 SSO、网页登录、跨机器数据库、队列、自动存储清理或高并发性能承诺；这些限制不影响已实现的身份隔离与并发唯一性。
+当前适用于一个街区/园区、小团队和单机本地盘部署。没有 SSO、自助注册、邮件找回密码、跨机器数据库、队列、自动业务存储清理或高并发性能承诺；这些限制不影响已实现的网页登录、身份隔离与并发唯一性。

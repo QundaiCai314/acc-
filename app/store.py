@@ -20,7 +20,7 @@ class Store:
         with closing(self.connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version not in (0, 1, 2, 3):
+            if version not in (0, 1, 2, 3, 4):
                 raise RuntimeError(f'Unsupported database version: {version}; explicit migration required')
             db.execute('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS decisions (plan_id TEXT PRIMARY KEY REFERENCES records(id), body TEXT NOT NULL)')
@@ -37,7 +37,10 @@ class Store:
             db.execute('CREATE TABLE IF NOT EXISTS review_leases ('
                        'annotation_id TEXT PRIMARY KEY REFERENCES records(id), workspace TEXT NOT NULL, '
                        'user_id TEXT NOT NULL, expires_at REAL NOT NULL)')
-            db.execute('PRAGMA user_version = 3')
+            db.execute('CREATE TABLE IF NOT EXISTS auth_sessions ('
+                       'token_sha256 TEXT PRIMARY KEY, user_id TEXT NOT NULL, workspace TEXT NOT NULL, '
+                       'credential_digest TEXT NOT NULL, expires_at REAL NOT NULL)')
+            db.execute('PRAGMA user_version = 4')
         with closing(self.connect()) as db:
             db.execute('PRAGMA journal_mode = WAL')
 
@@ -45,6 +48,21 @@ class Store:
         db = sqlite3.connect(self.path, timeout=10)
         db.execute('PRAGMA foreign_keys = ON')
         return db
+
+    def create_auth_session(self, digest: str, user_id: str, workspace: str, credential_digest: str, expires_at: float):
+        with closing(self.connect()) as db, db:
+            db.execute('DELETE FROM auth_sessions WHERE expires_at <= ?', (time.time(),))
+            db.execute('INSERT INTO auth_sessions VALUES (?, ?, ?, ?, ?)',
+                       (digest, user_id, workspace, credential_digest, expires_at))
+
+    def auth_session(self, digest: str) -> tuple | None:
+        with closing(self.connect()) as db:
+            return db.execute('SELECT user_id, workspace, credential_digest FROM auth_sessions '
+                              'WHERE token_sha256 = ? AND expires_at > ?', (digest, time.time())).fetchone()
+
+    def revoke_auth_session(self, digest: str):
+        with closing(self.connect()) as db, db:
+            db.execute('DELETE FROM auth_sessions WHERE token_sha256 = ?', (digest,))
 
     def save(self, kind: str, body: dict) -> dict:
         record = {**attributed(body), 'id': str(uuid4()), 'created_at': datetime.now(timezone.utc).isoformat()}

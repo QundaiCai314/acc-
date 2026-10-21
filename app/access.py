@@ -1,4 +1,4 @@
-"""Small-team bearer authentication. Only token digests are stored in the config."""
+"""Small-team authentication with personal tokens and revocable login sessions."""
 import hashlib
 import ipaddress
 from contextvars import ContextVar
@@ -12,6 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 
 from .models import StrictModel
+from .passwords import HASH_PATTERN
 
 
 class Principal(StrictModel):
@@ -22,7 +23,14 @@ class Principal(StrictModel):
 
 class Account(Principal):
     token_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+    password_hash: str | None = Field(default=None, pattern=HASH_PATTERN)
     enabled: bool = True
+
+    def credential_digest(self) -> str:
+        return hashlib.sha256((self.token_sha256 + ':' + (self.password_hash or '')).encode()).hexdigest()
+
+    def identity(self) -> Principal:
+        return Principal(user_id=self.user_id, workspace=self.workspace, role=self.role)
 
 
 class AccessConfig(StrictModel):
@@ -58,6 +66,8 @@ def authorize(request: Request, credentials=Depends(HTTPBearer(auto_error=False)
     if not team_mode.get():
         return
     route = request.scope['route'].path
+    if route in ('/auth/login', '/auth/logout'):
+        return
     role = principal.get().role
     if route.startswith('/integrations') and role != 'admin':
         raise HTTPException(403, 'Administrator role required')
@@ -86,6 +96,8 @@ class AccessMiddleware:
             return await self.app(scope, receive, send)
         headers = {k.lower(): v for k, v in scope['headers']}
         actor = LOCAL
+        login = scope['path'] == '/auth/login' and scope['method'] == 'POST'
+        scope.setdefault('state', {})['auth_session'] = None
         if self.mode == 'team':
             # Reload per request so revocations apply across all workers without restarting.
             try:
@@ -93,17 +105,30 @@ class AccessMiddleware:
                     lambda: AccessConfig.model_validate_json(self.config_path.read_text(encoding='utf-8')))
             except (OSError, ValueError):
                 return await JSONResponse({'detail': 'Access configuration unavailable'}, 503)(scope, receive, send)
-            token = headers.get(b'authorization', b'').decode('latin-1')
-            digest = hashlib.sha256(token[7:].encode()).hexdigest() if token.startswith('Bearer ') else ''
-            account = next((u for u in config.users if u.enabled and u.token_sha256 == digest), None)
-            if account is None:
-                return await JSONResponse({'detail': 'Valid bearer token required'}, 401,
-                                          headers={'WWW-Authenticate': 'Bearer'})(scope, receive, send)
-            actor = Principal.model_validate(account.model_dump(exclude={'token_sha256', 'enabled'}))
             store = scope['app'].state.store
-            expensive = scope['path'].endswith(('/analyze', '/ask', '/probe', '/references/search'))
-            limit = config.model_requests_per_minute if expensive else config.requests_per_minute
-            bucket = f'{actor.workspace}:{actor.user_id}:{"model" if expensive else "api"}'
+            if login:
+                scope['state']['access_config'] = config
+                # Use the ASGI peer, never an untrusted forwarded header.
+                peer = (scope.get('client') or ('unknown', 0))[0]
+                bucket, limit = f'login-ip:{peer}', 30
+            else:
+                token = headers.get(b'authorization', b'').decode('latin-1')
+                digest = hashlib.sha256(token[7:].encode()).hexdigest() if token.startswith('Bearer ') else ''
+                account = next((u for u in config.users if u.enabled and u.token_sha256 == digest), None)
+                if account is None and digest:
+                    session = await run_in_threadpool(store.auth_session, digest)
+                    if session:
+                        account = next((u for u in config.users if u.enabled and
+                                        (u.user_id, u.workspace, u.credential_digest()) == session), None)
+                        if account:
+                            scope['state']['auth_session'] = digest
+                if account is None:
+                    return await JSONResponse({'detail': 'Valid bearer token required'}, 401,
+                                              headers={'WWW-Authenticate': 'Bearer', 'Cache-Control': 'no-store'})(scope, receive, send)
+                actor = account.identity()
+                expensive = scope['path'].endswith(('/analyze', '/ask', '/probe', '/references/search'))
+                limit = config.model_requests_per_minute if expensive else config.requests_per_minute
+                bucket = f'{actor.workspace}:{actor.user_id}:{"model" if expensive else "api"}'
             if not await run_in_threadpool(store.consume_rate, bucket, limit):
                 return await JSONResponse({'detail': 'Request limit reached'}, 429,
                                           headers={'Retry-After': '60'})(scope, receive, send)
@@ -122,8 +147,8 @@ class AccessMiddleware:
             if message['type'] == 'http.disconnect':
                 return
             body.extend(message.get('body', b''))
-            if len(body) > self.max_body_bytes:
-                return await JSONResponse({'detail': 'Request body exceeds 8 MB'}, 413)(scope, receive, send)
+            if len(body) > (4096 if login else self.max_body_bytes):
+                return await JSONResponse({'detail': 'Request body exceeds size limit'}, 413)(scope, receive, send)
             if not message.get('more_body', False):
                 break
         delivered = False

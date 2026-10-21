@@ -176,7 +176,8 @@ async function work(fn) {
     buttons.forEach((b) => (b.disabled = false));
     document.querySelector('main')?.setAttribute('aria-busy', 'false');
     notify(e.message, true);
-    if (loginError?.isConnected) loginError.textContent = e.message;
+    const currentLoginError = document.querySelector('#login-error');
+    if (currentLoginError) currentLoginError.textContent = e.message;
     if (dialog.open) {
       let error = dialog.querySelector('[role=alert]');
       if (!error) {
@@ -216,6 +217,50 @@ async function refresh() {
 function go(screen) {
   location.hash = screen;
 }
+function clearIdentity() {
+  stopPlayback();
+  state.client?.dispose();
+  formDrafts.clear();
+  render.context = null;
+  Object.assign(state, makeDemo(), {
+    client: null, datasets: [], search: '', cameraImage: null, hoverCamera: null,
+    minimizedWindows: [],
+    identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
+  });
+  resetSelection();
+  dialog.close();
+}
+function expireLogin(client) {
+  if (state.client !== client) return;
+  clearIdentity();
+  state.screen = 'login';
+  history.replaceState(null, '', '#login');
+  render();
+  document.querySelector('#login-error').textContent = '登录已过期或身份已撤销，请重新登录。';
+}
+async function connectClient(candidate) {
+  try {
+    const identity = await candidate.request('/auth/me');
+    const datasets = await candidate.list('/spatial/datasets', 'datasets');
+    const data = await loadDataset(datasets[0]?.id, candidate);
+    // Revoke the previous password session before replacing its identity.
+    if (state.client?.session) await state.client.request('/auth/logout', {}).catch((e) => {
+      if (e.status !== 401) throw e;
+    });
+    clearIdentity();
+    Object.assign(state, data, { client: candidate, identity, datasets, search: '',
+      serverBase: candidate.base, loginWorkspace: identity.workspace });
+    candidate.onUnauthorized = () => expireLogin(candidate);
+    if (candidate.expiresAt) candidate.expiryTimer = setTimeout(
+      () => expireLogin(candidate), Math.max(0, new Date(candidate.expiresAt) - Date.now()));
+    resetSelection();
+    if (state.screen === 'login') go('command');
+  } catch (e) {
+    if (candidate.session) await candidate.request('/auth/logout', {}).catch(() => {});
+    candidate.dispose();
+    throw e;
+  }
+}
 function modal(html) {
   dialog.innerHTML =
     '<button type="button" class="dialog-close icon-button" data-action="close-dialog" aria-label="关闭">' +
@@ -231,7 +276,7 @@ function connectDialog() {
       '"></label><label>个人访问令牌<input name="token" type="password" autocomplete="off" placeholder="本机 local 模式可留空"></label><button class="button primary full">连接并读取现场</button></form><p class="meta">跨域部署需在后端 DISASTER_CORS_ORIGINS 中允许当前页面来源。团队远程连接使用 HTTPS。</p>' +
       '<button class="text-button" data-action="open-login">打开登录页 →</button>' +
       (state.client
-        ? '<button class="button danger full" data-action="disconnect">断开连接，回到离线演练</button>'
+        ? '<button class="button danger full" data-action="disconnect">退出登录</button>'
         : ''),
   );
 }
@@ -311,13 +356,14 @@ const actions = {
     go('login');
   },
   'toggle-login-secret': (button) => {
-    const input = document.querySelector('#login-token');
+    const input = document.querySelector('#' + button.dataset.target);
     const show = input.type === 'password';
     input.type = show ? 'text' : 'password';
     button.setAttribute('aria-pressed', String(show));
-    button.setAttribute('aria-label', show ? '隐藏令牌' : '显示令牌');
+    const label = button.dataset.target === 'login-password' ? '密码' : '令牌';
+    button.setAttribute('aria-label', (show ? '隐藏' : '显示') + label);
   },
-  'login-help': () => notify('请联系团队管理员创建账号或重新签发个人访问令牌。此页面不接收邮箱密码。'),
+  'login-help': () => notify('请联系团队管理员重置密码；管理员不会在此页面查看密码。'),
   'login-slide': (button) => {
     document.querySelector('.ds-login-right').dataset.slide = button.dataset.value;
     for (const bar of document.querySelectorAll('.ds-carousel-bar'))
@@ -415,17 +461,14 @@ const actions = {
       if (state.client) state.datasets = await state.client.list('/spatial/datasets', 'datasets');
       datasetsDialog();
     }),
-  disconnect: () => {
-    state.client?.dispose();
-    Object.assign(state, makeDemo(), {
-      client: null,
-      datasets: [],
-      identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
+  disconnect: () => work(async () => {
+    if (state.client) await state.client.request('/auth/logout', {}).catch((e) => {
+      if (e.status !== 401) throw e;
     });
-    resetSelection();
-    dialog.close();
-    render();
-  },
+    clearIdentity();
+    state.screen = 'login';
+    history.replaceState(null, '', '#login');
+  }),
   refresh: () => work(refresh),
   'dismiss-error': () => {
     state.error = '';
@@ -789,6 +832,19 @@ document.addEventListener('change', (e) => {
 });
 
 const submits = {
+  'login-form': async (f, d) => {
+    const candidate = new Client(d.get('base'));
+    let result;
+    try {
+      result = await candidate.request('/auth/login', {
+        user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password'),
+      });
+    } catch (e) { candidate.dispose(); throw e; }
+    candidate.token = result.access_token;
+    candidate.session = true;
+    candidate.expiresAt = result.expires_at;
+    await connectClient(candidate);
+  },
   'quick-question': async (form, data) => {
     const question = data.get('question');
     state.showIntel = true;
@@ -798,20 +854,7 @@ const submits = {
       state.answer = await state.client.request(datasetPath() + '/ask', { question });
   },
   'connect-form': async (f, d) => {
-    const candidate = new Client(d.get('base'), d.get('token').trim());
-    try {
-      const identity = await candidate.request('/auth/me');
-      const datasets = await candidate.list('/spatial/datasets', 'datasets');
-      const data = await loadDataset(datasets[0]?.id, candidate);
-      state.client?.dispose();
-      Object.assign(state, data, { client: candidate, identity, datasets, search: '' });
-      resetSelection();
-      dialog.close();
-      if (state.screen === 'login') go('command');
-    } catch (e) {
-      candidate.dispose();
-      throw e;
-    }
+    await connectClient(new Client(d.get('base'), d.get('token').trim()));
   },
   'select-dataset-form': async (f, d) => {
     Object.assign(state, await loadDataset(d.get('id')));

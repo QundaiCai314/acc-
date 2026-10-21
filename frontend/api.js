@@ -9,9 +9,13 @@ export class Client {
     this.base = u.href.replace(/\/$/, '');
     this.token = token;
     this.blobs = new Map();
+    this.controllers = new Set();
+    this.disposed = false;
   }
   async request(path, body, extra = {}) {
+    if (this.disposed) throw new Error('连接已关闭，请重新登录。');
     const controller = new AbortController();
+    this.controllers.add(controller);
     const timeout = setTimeout(() => controller.abort(), 90000);
     try {
       const response = await fetch(this.base + path, {
@@ -30,9 +34,9 @@ export class Client {
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         const messages = {
-          401: '身份验证失效，请重新连接并填写有效个人令牌。',
+          401: path === '/auth/login' ? '账号、密码或工作空间不正确，请核对后重试。' : '登录已过期或身份已撤销，请重新登录。',
           403: '当前账号没有此操作权限。',
-          409: '记录已被其他人处理，或不在有效期内。请刷新后复核，勿重复提交。',
+          409: path === '/auth/login' ? '当前后端为本机模式，请使用下方本机连接入口；账号登录需启用 team 模式。' : '记录已被其他人处理，或不在有效期内。请刷新后复核，勿重复提交。',
           413: '资料超过服务接收上限，请缩小文件后重试。',
           429: '请求过于频繁，请稍后再试。',
           502: '外部模型或搜索服务返回异常，请检查服务配置后重试。',
@@ -40,15 +44,20 @@ export class Client {
         };
         const detail =
           typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '');
-        throw new Error(
+        const error = new Error(
           (messages[response.status] || '请求未完成，请核对输入。') +
             ' [' +
             response.status +
             '] ' +
             detail.slice(0, 900),
         );
+        error.status = response.status;
+        if (response.status === 401 && path !== '/auth/login') this.onUnauthorized?.();
+        throw error;
       }
-      return path.endsWith('/content') ? response.blob() : response.json();
+      const data = await (path.endsWith('/content') ? response.blob() : response.json());
+      if (this.disposed) throw new Error('连接已关闭，请重新登录。');
+      return data;
     } catch (e) {
       if (e.name === 'AbortError')
         throw new Error('请求超时，服务端可能仍在处理。请先刷新查看结果，再决定是否重试。');
@@ -57,6 +66,7 @@ export class Client {
       throw e;
     } finally {
       clearTimeout(timeout);
+      this.controllers.delete(controller);
     }
   }
   async list(path, key) {
@@ -83,6 +93,11 @@ export class Client {
     return this.blobs.get(id);
   }
   dispose() {
+    this.disposed = true;
+    clearTimeout(this.expiryTimer);
+    this.onUnauthorized = null;
+    for (const controller of this.controllers) controller.abort();
+    this.controllers.clear();
     for (const p of this.blobs.values()) p.then(URL.revokeObjectURL).catch(() => {});
     this.blobs.clear();
     this.token = '';

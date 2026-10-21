@@ -57,7 +57,7 @@ def main():
                 page.goto('http://127.0.0.1:8080/#login')
                 expect(page.locator('.ds-login-title')).to_be_visible()
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), ('login', theme, width)
-                for control in page.locator('#connect-form input, .ds-submit-btn').all():
+                for control in page.locator('#login-form input:visible, .ds-submit-btn:visible').all():
                     box = control.bounding_box()
                     assert box and box['x'] >= 0 and box['x'] + box['width'] <= width + 1, ('login', theme, width, box)
                 expect(page.get_by_role('button', name='注册 · 未开放')).to_be_disabled()

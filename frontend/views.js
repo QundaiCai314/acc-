@@ -73,7 +73,22 @@ export function shell(content) {
           '</a>',
       )
       .join('') +
-    '</nav><div class="top-right">' +
+    '</nav><div class="top-right"><div class="art-switcher" role="group" aria-label="界面主题">' +
+    [
+      ['vellum', '纸本测绘'],
+      ['brutalist', '粗野档案'],
+      ['mineral', '矿物岩彩'],
+    ]
+      .map(
+        ([id, label]) =>
+          '<button type="button" data-action="art-theme" data-value="' +
+          id +
+          '" aria-pressed="' +
+          (state.artTheme === id) +
+          '">' + label + '</button>',
+      )
+      .join('') +
+    '</div>' +
     badge(state.client ? 'approved' : 'pending_review', state.client ? '后端已连接' : '离线演练') +
     '<button class="connection" data-action="connect" aria-label="连接设置">' +
     icon('settings') +

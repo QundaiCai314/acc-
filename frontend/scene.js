@@ -86,19 +86,28 @@ function plan(r) {
         '" r="' +
         (state.point === p.label ? 8 : 4) +
         '" fill="' +
-        (i < r.snapshot.control_points.length ? '#67d6ed' : '#efbb72') +
+        (i < r.snapshot.control_points.length
+          ? (state.artTheme === 'brutalist' ? '#f5f5f0' : state.artTheme === 'mineral' ? '#45937a' : '#1d4696')
+          : (state.artTheme === 'brutalist' ? '#e8ff00' : state.artTheme === 'mineral' ? '#c9933b' : '#c83720')) +
         '"/><text x="' +
-        (x + 7) +
+        (x > 145 ? x - 7 : x + 7) +
         '" y="' +
         (y - 8) +
-        '" fill="#c4ddea" font-size="8">' +
+        '" text-anchor="' +
+        (x > 145 ? 'end' : 'start') +
+        '" fill="' +
+        (state.artTheme === 'vellum' || !state.artTheme ? '#161513' : '#f0ebe1') +
+        '" font-size="8">' +
         esc(p.label) +
         '</text></g>'
       );
     })
     .join('');
+  const gStroke = state.artTheme === 'vellum' || !state.artTheme ? '#cfc7b6' : '#2e2e2a';
+  const aStroke = state.artTheme === 'vellum' || !state.artTheme ? '#787062' : '#6e6a60';
+  const tFill = state.artTheme === 'vellum' || !state.artTheme ? '#161513' : '#d8d3c8';
   return (
-    '<svg viewBox="0 0 220 320" role="group" aria-label="控制点 ENU 俯视图"><defs><pattern id="plan-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="#304959" stroke-width=".5"/></pattern></defs><rect width="220" height="320" fill="url(#plan-grid)"/><path d="M20 160H205M110 290V20" stroke="#627d90" stroke-width=".7"/><text x="118" y="24" fill="#9fc4d5" font-size="9">N</text><text x="202" y="153" fill="#9fc4d5" font-size="9">E</text>' +
+    '<svg viewBox="0 0 220 320" role="group" aria-label="控制点 ENU 俯视图"><defs><pattern id="plan-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="' + gStroke + '" stroke-width=".6"/></pattern></defs><rect width="220" height="320" fill="url(#plan-grid)"/><path d="M20 160H205M110 290V20" stroke="' + aStroke + '" stroke-width=".8"/><text x="118" y="24" fill="' + tFill + '" font-size="9">N</text><text x="202" y="153" fill="' + tFill + '" font-size="9">E</text>' +
     body +
     '</svg>'
   );
@@ -111,9 +120,10 @@ export function mountScene() {
   }
   reg = state.artifacts.find((r) => r.id === slot.dataset.registration);
   if (!reg) return;
-  if (regId !== reg.id) {
+  const wantedKey = reg.id + '|' + (state.artTheme || 'vellum');
+  if (regId !== wantedKey) {
     dispose();
-    regId = reg.id;
+    regId = wantedKey;
     create(slot);
   } else if (element) {
     slot.append(element);
@@ -149,7 +159,9 @@ function create(slot) {
     return;
   }
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor('#101b26');
+  const isVellum = (state.artTheme || 'vellum') === 'vellum';
+  const isBrutalist = state.artTheme === 'brutalist';
+  renderer.setClearColor(isVellum ? '#ebe5d8' : isBrutalist ? '#0c0c0c' : '#141d22');
   element.append(renderer.domElement);
   renderer.domElement.setAttribute(
     'aria-label',
@@ -202,9 +214,9 @@ function create(slot) {
     const mesh = new THREE.Mesh(
       geometry,
       new THREE.MeshStandardMaterial({
-        color: 0x376879,
+        color: isVellum ? 0xd8d0c0 : isBrutalist ? 0x1f1f1f : 0x243842,
         transparent: true,
-        opacity: 0.65,
+        opacity: isVellum ? 0.72 : 0.58,
         side: THREE.DoubleSide,
         roughness: 0.8,
       }),
@@ -213,7 +225,7 @@ function create(slot) {
     scene.add(
       new THREE.LineSegments(
         new THREE.EdgesGeometry(geometry),
-        new THREE.LineBasicMaterial({ color: 0x80cbe2 }),
+        new THREE.LineBasicMaterial({ color: isVellum ? 0x161513 : isBrutalist ? 0xf5f5f0 : 0xd8d0c0 }),
       ),
     );
     const center = new THREE.Box3().setFromPoints(vertices).getCenter(new THREE.Vector3());
@@ -228,7 +240,7 @@ function create(slot) {
       check = i >= reg.snapshot.control_points.length;
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(extent * 0.016, 14, 10),
-      new THREE.MeshBasicMaterial({ color: check ? 0xf4ba65 : 0x5ee2f4 }),
+      new THREE.MeshBasicMaterial({ color: check ? (isVellum ? 0xc83720 : 0xe8ff00) : (isVellum ? 0x1d4696 : 0x45937a) }),
     );
     sphere.position.copy(target);
     sphere.userData.point = p.label;
@@ -236,7 +248,7 @@ function create(slot) {
     targets.push(sphere);
     labels.push({ position: target, text: p.label });
     const residual = new THREE.BufferGeometry().setFromPoints([actual, target]);
-    scene.add(new THREE.Line(residual, new THREE.LineBasicMaterial({ color: 0xff786b })));
+    scene.add(new THREE.Line(residual, new THREE.LineBasicMaterial({ color: 0xc83720 })));
   });
   for (const img of state.images) {
     const pose = img.camera_pose;
@@ -267,7 +279,7 @@ function create(slot) {
     scene.add(helper);
     const point = new THREE.Mesh(
       new THREE.OctahedronGeometry(extent * 0.026),
-      new THREE.MeshBasicMaterial({ color: 0xb7e9fb }),
+      new THREE.MeshBasicMaterial({ color: isVellum ? 0x1d4696 : 0xf0ebe1 }),
     );
     point.position.copy(pos);
     point.userData.image = img.id;

@@ -141,7 +141,14 @@ export function compose(pages) {
     panels += windowFrame(
       'tool',
       esc(heading),
-      tabs + '<div class="tool-content">' + content.innerHTML + '</div>',
+      (group === 'media' || group === 'scene'
+        ? '<div class="workflow-toolbar">' + tabs +
+          '<div class="workflow-context"><button class="text-button" data-action="datasets" aria-label="切换现场">' +
+          esc(state.dataset?.snapshot.title || '选择现场') +
+          ' ↓</button><button class="text-button" data-action="refresh"' +
+          (state.busy ? ' disabled' : '') + '>' + icon('refresh') +
+          '刷新</button></div></div>'
+        : tabs) + '<div class="tool-content">' + content.innerHTML + '</div>',
       'close-tool',
       'tool-' + group + (state.expandedTool ? ' expanded' : ''),
     );

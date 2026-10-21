@@ -296,7 +296,7 @@ function timeline() {
         '" width="7" height="' +
         Math.max(1, (count / max) * 28) +
         '" fill="' +
-        ((i / 36) * 100 >= left && (i / 36) * 100 <= right ? '#58c9e3' : '#40515f') +
+        ((i / 36) * 100 >= left && (i / 36) * 100 <= right ? 'var(--mint)' : 'var(--line)') +
         '"/>',
     )
     .join('');
@@ -611,7 +611,7 @@ export function review() {
     state.compareBoxes +
     '">' +
     icon('layers') +
-    '原始对照</button></div><div class="annotation-canvas ' +
+    '原始对照</button></div><div tabindex="0" role="region" aria-label="图片标注画布" class="annotation-canvas ' +
     (state.drawBox ? 'drawing' : '') +
     '"><div class="image-transform" style="width:' +
     state.imageZoom * 100 +

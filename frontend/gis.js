@@ -30,10 +30,97 @@ const offset = (c, m, bearing) => {
     c.latitude + (Math.cos(a) * m) / 111195,
   ];
 };
+function themePalette() {
+  const t = state.artTheme || 'vellum';
+  if (t === 'brutalist') {
+    return {
+      bg: '#0c0c0c',
+      gridMajor: '#2e2e2e',
+      gridMinor: '#1c1c1c',
+      bufferFill: '#e8ff00',
+      bufferLine: '#e8ff00',
+      roadShadow: '#000000',
+      roadOpen: '#f5f5f0',
+      roadBlocked: '#ff2a00',
+      roadUnknown: '#858580',
+      routeLine: '#e8ff00',
+      relActive: '#e8ff00',
+      relIdle: '#888882',
+      coneActive: '#e8ff00',
+      coneIdle: '#999992',
+      coneEdge: '#e8ff00',
+      haloFill: '#ff2a00',
+      haloStroke: '#e8ff00',
+      pointFill: '#0c0c0c',
+      camFill: '#e8ff00',
+      camStroke: '#0c0c0c',
+      entBlocked: '#ff2a00',
+      entResource: '#e8ff00',
+      entEntrance: '#ffffff',
+      entBuilding: '#f5f5f0',
+    };
+  }
+  if (t === 'mineral') {
+    return {
+      bg: '#141d22',
+      gridMajor: '#283842',
+      gridMinor: '#1c2830',
+      bufferFill: '#c9933b',
+      bufferLine: '#c9933b',
+      roadShadow: '#0b1114',
+      roadOpen: '#74c8aa',
+      roadBlocked: '#ff917d',
+      roadUnknown: '#a3b2ba',
+      routeLine: '#d14332',
+      relActive: '#c9933b',
+      relIdle: '#6c808a',
+      coneActive: '#c9933b',
+      coneIdle: '#45937a',
+      coneEdge: '#c9933b',
+      haloFill: '#d14332',
+      haloStroke: '#c9933b',
+      pointFill: '#141d22',
+      camFill: '#f0ebe1',
+      camStroke: '#141d22',
+      entBlocked: '#ff917d',
+      entResource: '#74c8aa',
+      entEntrance: '#c9933b',
+      entBuilding: '#f0ebe1',
+    };
+  }
+  // Default: 'vellum' (Kunsthalle & Vignelli Archival Vellum Atlas)
+  return {
+    bg: '#e8e1d3',
+    gridMajor: '#c4bba8',
+    gridMinor: '#d6cebe',
+    bufferFill: '#1d4696',
+    bufferLine: '#1d4696',
+    roadShadow: '#ded6c6',
+    roadOpen: '#1f6346',
+    roadBlocked: '#c83720',
+    roadUnknown: '#6c655b',
+    routeLine: '#c83720',
+    relActive: '#c83720',
+    relIdle: '#6e675c',
+    coneActive: '#1d4696',
+    coneIdle: '#5a72a3',
+    coneEdge: '#1d4696',
+    haloFill: '#c83720',
+    haloStroke: '#c83720',
+    pointFill: '#f5f1e8',
+    camFill: '#1d4696',
+    camStroke: '#f5f1e8',
+    entBlocked: '#c83720',
+    entResource: '#1f6346',
+    entEntrance: '#b56c12',
+    entBuilding: '#161513',
+  };
+}
 export function detachMap() {
   if (element?.isConnected) element.remove();
 }
 export function mapData() {
+  const pal = themePalette();
   const marks = [],
     roads = [],
     zones = [],
@@ -57,12 +144,12 @@ export function mapData() {
           kind: e.kind,
           selected: e.id === state.selected,
           color: blocked
-            ? '#ff796b'
+            ? pal.entBlocked
             : e.kind === 'resource'
-              ? '#58d9f5'
+              ? pal.entResource
               : e.kind === 'entrance'
-                ? '#f2ba62'
-                : '#b7cbd6',
+                ? pal.entEntrance
+                : pal.entBuilding,
           evidence: anns.length,
           mark: e.kind === 'resource' ? '+' : e.kind === 'entrance' ? '◇' : '□',
         }),
@@ -80,7 +167,7 @@ export function mapData() {
           route: !!state.route?.edges?.some((r) => r.id === e.id),
           oneway: !e.bidirectional,
           color:
-            e.status === 'blocked' ? '#ff796b' : e.status === 'unknown' ? '#8b9aa5' : '#6bcbd5',
+            e.status === 'blocked' ? pal.roadBlocked : e.status === 'unknown' ? pal.roadUnknown : pal.roadOpen,
           label:
             e.status === 'blocked'
               ? '封闭 ×'
@@ -130,7 +217,18 @@ export function mapData() {
         b = entity(r.object)?.coordinates;
       if (a && b) links.push(line([xy(a), xy(b)], { label: r.predicate, active: paths.has(r) }));
     }
+  const gridLines = [];
+  const baseOrigin = entity('building-a')?.coordinates || entities().find((e) => e.coordinates)?.coordinates;
+  // Local display grid only; no site coordinates means no grid.
+  if (baseOrigin)
+    for (let d = -320; d <= 320; d += 40) {
+      const ew = { latitude: offset(baseOrigin, d, 0)[1], longitude: baseOrigin.longitude };
+      const ns = { latitude: baseOrigin.latitude, longitude: offset(baseOrigin, d, 90)[0] };
+      gridLines.push(line([offset(ew, 320, 270), offset(ew, 320, 90)], { major: d % 120 === 0 }));
+      gridLines.push(line([offset(ns, 320, 180), offset(ns, 320, 0)], { major: d % 120 === 0 }));
+    }
   return {
+    grid: collection(gridLines),
     entities: collection(marks),
     roads: collection(roads),
     buffer: collection(zones),
@@ -140,10 +238,16 @@ export function mapData() {
   };
 }
 function setup() {
-  for (const name of ['entities', 'roads', 'buffer', 'cameras', 'cones', 'relations'])
+  for (const name of ['grid', 'entities', 'roads', 'buffer', 'cameras', 'cones', 'relations'])
     map.addSource(name, { type: 'geojson', data: collection([]) });
   const add = (id, type, source, paint = {}, layout = {}, filter) =>
     map.addLayer({ id, type, source, paint, layout, ...(filter ? { filter } : {}) });
+  const pal = themePalette();
+  add('tactical-grid', 'line', 'grid', {
+    'line-color': ['case', ['get', 'major'], pal.gridMajor, pal.gridMinor],
+    'line-width': ['case', ['get', 'major'], 1.1, 0.55],
+    'line-opacity': 0.85,
+  });
   add('buffer-fill', 'fill', 'buffer', { 'fill-color': '#51cce5', 'fill-opacity': 0.055 });
   add('buffer-line', 'line', 'buffer', {
     'line-color': '#6bdcf4',
@@ -306,6 +410,25 @@ export function mountMap() {
 }
 export function updateMap() {
   if (!ready || !map) return;
+  const pal = themePalette();
+  if (map.getLayer('background')) map.setPaintProperty('background', 'background-color', pal.bg);
+  if (map.getLayer('tactical-grid')) map.setPaintProperty('tactical-grid', 'line-color', ['case', ['get', 'major'], pal.gridMajor, pal.gridMinor]);
+  if (map.getLayer('buffer-fill')) map.setPaintProperty('buffer-fill', 'fill-color', pal.bufferFill);
+  if (map.getLayer('buffer-line')) map.setPaintProperty('buffer-line', 'line-color', pal.bufferLine);
+  if (map.getLayer('roads-shadow')) map.setPaintProperty('roads-shadow', 'line-color', pal.roadShadow);
+  if (map.getLayer('roads-route')) map.setPaintProperty('roads-route', 'line-color', pal.routeLine);
+  if (map.getLayer('relation-links')) map.setPaintProperty('relation-links', 'line-color', ['case', ['get', 'active'], pal.relActive, pal.relIdle]);
+  if (map.getLayer('camera-cones')) map.setPaintProperty('camera-cones', 'fill-color', ['case', ['get', 'active'], pal.coneActive, pal.coneIdle]);
+  if (map.getLayer('camera-cone-edges')) map.setPaintProperty('camera-cone-edges', 'line-color', pal.coneEdge);
+  if (map.getLayer('selected-halo')) {
+    map.setPaintProperty('selected-halo', 'circle-color', pal.haloFill);
+    map.setPaintProperty('selected-halo', 'circle-stroke-color', pal.haloStroke);
+  }
+  if (map.getLayer('object-points')) map.setPaintProperty('object-points', 'circle-color', pal.pointFill);
+  if (map.getLayer('camera-points')) {
+    map.setPaintProperty('camera-points', 'circle-color', pal.camFill);
+    map.setPaintProperty('camera-points', 'circle-stroke-color', pal.camStroke);
+  }
   const data = mapData();
   for (const [id, geo] of Object.entries(data)) map.getSource(id)?.setData(geo);
   markers.forEach((m) => m.remove());

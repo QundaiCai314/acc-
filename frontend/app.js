@@ -52,6 +52,7 @@ function render() {
     formDrafts.set(render.context, [...saved.values()]);
   }
   const drafts = formDrafts.get(context) || [];
+  document.documentElement.dataset.theme = state.artTheme;
   detachMap();
   detachScene();
   app.innerHTML = view.shell(compose(pages));
@@ -294,6 +295,12 @@ function setSelection(id) {
   focusMap(id);
 }
 const actions = {
+  'art-theme': (b) => {
+    if (!['vellum', 'brutalist', 'mineral'].includes(b.dataset.value)) return;
+    state.artTheme = b.dataset.value;
+    render();
+    document.querySelector('[data-action="art-theme"][data-value="' + state.artTheme + '"]')?.focus();
+  },
   'toggle-objects': () => {
     state.showObjects = !state.showObjects;
     render();

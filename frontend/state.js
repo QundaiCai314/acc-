@@ -104,6 +104,7 @@ Object.assign(state, {
   drawBox: false,
   lease: null,
   leaseKnown: false,
+  artTheme: 'vellum',
 });
 state.layers.cameras = true;
 export function clearResults() {

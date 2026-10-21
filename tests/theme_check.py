@@ -60,9 +60,10 @@ def main():
                 for control in page.locator('#login-form input:visible, .ds-submit-btn:visible').all():
                     box = control.bounding_box()
                     assert box and box['x'] >= 0 and box['x'] + box['width'] <= width + 1, ('login', theme, width, box)
-                expect(page.get_by_role('button', name='注册 · 未开放')).to_be_disabled()
-                expect(page.get_by_role('button', name='Continue with Google · 未接入')).to_be_disabled()
-                expect(page.get_by_role('button', name='Continue with Apple · 未接入')).to_be_disabled()
+                page.get_by_role('button', name='注册').click()
+                expect(page.locator('#register-account-form')).to_be_visible()
+                expect(page.get_by_role('button', name='提交注册申请')).to_be_visible()
+                page.get_by_role('button', name='登录').click()
                 expect(page.get_by_role('button', name='主视觉 2（待补充）', exact=True)).to_be_disabled()
                 expect(page.get_by_role('button', name='主视觉 3（待补充）', exact=True)).to_be_disabled()
                 expect(page.get_by_role('button', name='主视觉 4（待补充）', exact=True)).to_be_disabled()

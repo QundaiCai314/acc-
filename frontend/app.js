@@ -10,6 +10,7 @@ import { detachScene, mountScene } from './scene.js';
 import { cameraPayload } from './camera.js';
 import { compose, mountWindows } from './workspace.js';
 import { loginPage } from './login.js';
+import { passwordForm, membersPanel, checkPasswords } from './accounts.js';
 
 const pages = {
   login: loginPage,
@@ -224,6 +225,7 @@ function clearIdentity() {
   render.context = null;
   Object.assign(state, makeDemo(), {
     client: null, datasets: [], search: '', cameraImage: null, hoverCamera: null,
+    authMode: 'login', authNotice: '',
     minimizedWindows: [],
     identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
   });
@@ -275,6 +277,7 @@ function connectDialog() {
       esc(state.client?.base || 'http://127.0.0.1:8000') +
       '"></label><label>个人访问令牌<input name="token" type="password" autocomplete="off" placeholder="本机 local 模式可留空"></label><button class="button primary full">连接并读取现场</button></form><p class="meta">跨域部署需在后端 DISASTER_CORS_ORIGINS 中允许当前页面来源。团队远程连接使用 HTTPS。</p>' +
       '<button class="text-button" data-action="open-login">打开登录页 →</button>' +
+      (state.client && state.identity.user_id !== 'local' ? '<button class="button" data-action="account-settings">账号管理</button>' : '') +
       (state.client
         ? '<button class="button danger full" data-action="disconnect">退出登录</button>'
         : ''),
@@ -363,7 +366,18 @@ const actions = {
     const label = button.dataset.target === 'login-password' ? '密码' : '令牌';
     button.setAttribute('aria-label', (show ? '隐藏' : '显示') + label);
   },
-  'login-help': () => notify('请联系团队管理员重置密码；管理员不会在此页面查看密码。'),
+  'auth-mode': (button) => {
+    const form = document.querySelector('.ds-form');
+    if (form?.elements.base) state.serverBase = form.elements.base.value;
+    if (form?.elements.workspace) state.loginWorkspace = form.elements.workspace.value;
+    state.authMode = button.dataset.value;
+    state.authNotice = '';
+    render();
+    document.querySelector('.ds-mode-tabs [aria-pressed=true]')?.focus();
+  },
+  'login-help': () => actions['auth-mode']({dataset: {value: 'reset'}}),
+  'account-settings': () => modal(passwordForm()),
+  'manage-members': () => work(async () => modal(membersPanel(await requireLive().request('/auth/members')))),
   'login-slide': (button) => {
     document.querySelector('.ds-login-right').dataset.slide = button.dataset.value;
     for (const bar of document.querySelectorAll('.ds-carousel-bar'))
@@ -832,6 +846,39 @@ document.addEventListener('change', (e) => {
 });
 
 const submits = {
+  'register-account-form': async (f, d) => {
+    checkPasswords(d);
+    const client = new Client(d.get('base'));
+    try {
+      await client.request('/auth/register', {user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password')});
+      state.serverBase = client.base; state.loginWorkspace = d.get('workspace').trim();
+      state.authMode = 'login'; state.authNotice = '申请已提交。管理员批准后，即可使用刚设置的账号密码登录。';
+    } finally { client.dispose(); }
+  },
+  'reset-password-form': async (f, d) => {
+    checkPasswords(d);
+    const client = new Client(d.get('base'));
+    try {
+      await client.request('/auth/reset-password', {user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password'), reset_code: d.get('reset_code').trim()});
+      clearIdentity();
+      state.serverBase = client.base; state.loginWorkspace = d.get('workspace').trim();
+      state.authNotice = '密码已重置，旧登录会话已失效。请使用新密码登录。';
+    } finally { client.dispose(); }
+  },
+  'change-password-form': async (f, d) => {
+    checkPasswords(d);
+    await requireLive().request('/auth/password', {current_password: d.get('current_password'), password: d.get('password')});
+    clearIdentity();
+    state.screen = 'login'; history.replaceState(null, '', '#login');
+    state.authNotice = '密码已修改，请重新登录。';
+  },
+  'member-form': async (f, d, action) => {
+    const client = requireLive();
+    const result = await client.request('/auth/members', {user_id: d.get('user_id'), action, role: d.get('role') || 'viewer'});
+    if (result.reset_code) {
+      modal('<h2>一次性重置码</h2><p>账号：' + esc(d.get('user_id')) + ' · 有效期 30 分钟。通过安全渠道交给本人，此码仅显示一次。</p><label>重置码<input readonly autocomplete="off" value="' + esc(result.reset_code) + '"></label><button class="button" data-action="manage-members">返回成员管理</button>');
+    } else modal(membersPanel(await client.request('/auth/members')));
+  },
   'login-form': async (f, d) => {
     const candidate = new Client(d.get('base'));
     let result;

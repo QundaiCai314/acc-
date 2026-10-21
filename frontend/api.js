@@ -33,6 +33,19 @@ export class Client {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
+        const authMessages = {
+          'Account already exists; contact the workspace administrator': '此账号已存在，请直接登录或联系管理员。',
+          'Workspace is not accepting registration; contact its administrator': '此工作空间尚未开放注册，请向管理员核对工作空间名称。',
+          'Registration is already awaiting approval': '此账号已有待审批申请，请联系管理员处理。',
+          'Registration is no longer pending': '此申请已被处理，请刷新成员列表。',
+          'Invalid or expired reset code': '重置码不正确或已过期，请向管理员重新领取。',
+          'Current password is incorrect': '当前密码不正确，请重新输入。',
+          'Manage administrator credentials using the server command': '管理员凭据由服务器账号管理命令重置。',
+          'Invalid account fields; new passwords require 12 to 256 characters': '请核对账号、工作空间与密码。新密码需 12–256 个字符。',
+          'Provide a valid account, workspace and password of at least 12 characters': '账号和工作空间只能包含英文字母、数字、下划线或短横线；密码需 12–256 个字符。',
+          'Registration requires team mode': '请将后端切换到 team 模式后注册。',
+          'Account management requires team mode': '此功能需要 team 模式，请连接团队后端。',
+        };
         const messages = {
           401: path === '/auth/login' ? '账号、密码或工作空间不正确，请核对后重试。' : '登录已过期或身份已撤销，请重新登录。',
           403: '当前账号没有此操作权限。',
@@ -45,11 +58,11 @@ export class Client {
         const detail =
           typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '');
         const error = new Error(
-          (messages[response.status] || '请求未完成，请核对输入。') +
+          (authMessages[data.detail] || messages[response.status] || '请求未完成，请核对输入。') +
             ' [' +
             response.status +
             '] ' +
-            detail.slice(0, 900),
+            (authMessages[data.detail] ? '' : detail.slice(0, 900)),
         );
         error.status = response.status;
         if (response.status === 401 && path !== '/auth/login') this.onUnauthorized?.();

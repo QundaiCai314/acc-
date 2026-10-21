@@ -25,6 +25,8 @@ class Account(Principal):
     token_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
     password_hash: str | None = Field(default=None, pattern=HASH_PATTERN)
     enabled: bool = True
+    reset_digest: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
+    reset_expires: float = 0
 
     def credential_digest(self) -> str:
         return hashlib.sha256((self.token_sha256 + ':' + (self.password_hash or '')).encode()).hexdigest()
@@ -66,9 +68,11 @@ def authorize(request: Request, credentials=Depends(HTTPBearer(auto_error=False)
     if not team_mode.get():
         return
     route = request.scope['route'].path
-    if route in ('/auth/login', '/auth/logout'):
+    if route in ('/auth/me', '/auth/login', '/auth/logout', '/auth/register', '/auth/reset-password', '/auth/password'):
         return
     role = principal.get().role
+    if route.startswith('/auth/') and role != 'admin':
+        raise HTTPException(403, 'Administrator role required')
     if route.startswith('/integrations') and role != 'admin':
         raise HTTPException(403, 'Administrator role required')
     if route == '/spatial/runs/{run_id}' and role == 'viewer':
@@ -97,6 +101,7 @@ class AccessMiddleware:
         headers = {k.lower(): v for k, v in scope['headers']}
         actor = LOCAL
         login = scope['path'] == '/auth/login' and scope['method'] == 'POST'
+        registration = scope['path'] in ('/auth/register', '/auth/reset-password') and scope['method'] == 'POST'
         scope.setdefault('state', {})['auth_session'] = None
         if self.mode == 'team':
             # Reload per request so revocations apply across all workers without restarting.
@@ -106,7 +111,9 @@ class AccessMiddleware:
             except (OSError, ValueError):
                 return await JSONResponse({'detail': 'Access configuration unavailable'}, 503)(scope, receive, send)
             store = scope['app'].state.store
-            if login:
+            scope['state']['access_config'] = config
+            scope['state']['access_path'] = self.config_path
+            if login or registration:
                 scope['state']['access_config'] = config
                 # Use the ASGI peer, never an untrusted forwarded header.
                 peer = (scope.get('client') or ('unknown', 0))[0]
@@ -147,7 +154,7 @@ class AccessMiddleware:
             if message['type'] == 'http.disconnect':
                 return
             body.extend(message.get('body', b''))
-            if len(body) > (4096 if login else self.max_body_bytes):
+            if len(body) > (4096 if scope['path'].startswith('/auth/') else self.max_body_bytes):
                 return await JSONResponse({'detail': 'Request body exceeds size limit'}, 413)(scope, receive, send)
             if not message.get('more_body', False):
                 break

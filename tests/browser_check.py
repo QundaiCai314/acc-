@@ -26,6 +26,10 @@ def main():
         page.goto(args.url)
         page.wait_for_load_state('networkidle')
         expect(page.locator('.ds-login-title')).to_contain_text('AI Disaster Commander')
+        page.get_by_role('button', name='注册').click()
+        expect(page.locator('#register-account-form')).to_be_visible()
+        expect(page.get_by_role('button', name='提交注册申请')).to_be_visible()
+        page.get_by_role('button', name='登录').click()
         page.get_by_role('link', name='进入离线演练').click()
         expect(page.get_by_role('heading', name='现场态势', exact=True)).to_be_visible()
         # Full-page capture temporarily resizes WebGL canvases; capture the actual viewport.

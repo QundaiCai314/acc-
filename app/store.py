@@ -20,7 +20,7 @@ class Store:
         with closing(self.connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
             version = db.execute('PRAGMA user_version').fetchone()[0]
-            if version not in (0, 1, 2, 3, 4):
+            if version not in (0, 1, 2, 3, 4, 5):
                 raise RuntimeError(f'Unsupported database version: {version}; explicit migration required')
             db.execute('CREATE TABLE IF NOT EXISTS records (id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS decisions (plan_id TEXT PRIMARY KEY REFERENCES records(id), body TEXT NOT NULL)')
@@ -40,7 +40,10 @@ class Store:
             db.execute('CREATE TABLE IF NOT EXISTS auth_sessions ('
                        'token_sha256 TEXT PRIMARY KEY, user_id TEXT NOT NULL, workspace TEXT NOT NULL, '
                        'credential_digest TEXT NOT NULL, expires_at REAL NOT NULL)')
-            db.execute('PRAGMA user_version = 4')
+            db.execute('CREATE TABLE IF NOT EXISTS registration_requests ('
+                       'workspace TEXT NOT NULL, user_id TEXT NOT NULL, password_hash TEXT NOT NULL, '
+                       'created_at TEXT NOT NULL, PRIMARY KEY (workspace, user_id))')
+            db.execute('PRAGMA user_version = 5')
         with closing(self.connect()) as db:
             db.execute('PRAGMA journal_mode = WAL')
 
@@ -63,6 +66,21 @@ class Store:
     def revoke_auth_session(self, digest: str):
         with closing(self.connect()) as db, db:
             db.execute('DELETE FROM auth_sessions WHERE token_sha256 = ?', (digest,))
+
+    def create_registration(self, workspace: str, user_id: str, password_hash: str, created_at: str):
+        with closing(self.connect()) as db, db:
+            db.execute('INSERT INTO registration_requests VALUES (?, ?, ?, ?)',
+                       (workspace, user_id, password_hash, created_at))
+
+    def registration(self, workspace: str, user_id: str) -> tuple | None:
+        with closing(self.connect()) as db:
+            return db.execute('SELECT password_hash, created_at FROM registration_requests '
+                              'WHERE workspace = ? AND user_id = ?', (workspace, user_id)).fetchone()
+
+    def remove_registration(self, workspace: str, user_id: str):
+        with closing(self.connect()) as db, db:
+            db.execute('DELETE FROM registration_requests WHERE workspace = ? AND user_id = ?',
+                       (workspace, user_id))
 
     def save(self, kind: str, body: dict) -> dict:
         record = {**attributed(body), 'id': str(uuid4()), 'created_at': datetime.now(timezone.utc).isoformat()}

@@ -85,9 +85,11 @@ async def manage_member(request: Request):
             store = request.app.state.store
             if change.action in ('approve', 'reject'):
                 pending = store.registration(actor.workspace, change.user_id)
-                if not pending or account:
+                if not pending or (account and change.action == 'approve'):
                     raise HTTPException(409, 'Registration is no longer pending')
                 if change.action == 'approve':
+                    if len(config['users']) >= 1000:
+                        raise HTTPException(409, 'Account capacity reached; registration remains pending')
                     config['users'].append(Account(user_id=change.user_id, workspace=actor.workspace,
                         role=change.role, password_hash=pending[0],
                         token_sha256=hashlib.sha256(secrets.token_bytes(32)).hexdigest()).model_dump())
@@ -191,18 +193,22 @@ async def register(request: Request):
     key = f'register:{details.workspace}:{details.user_id}'
     if not await run_in_threadpool(request.app.state.store.consume_rate, key, 3):
         raise HTTPException(429, 'Registration attempt limit reached', headers={'Retry-After': '60'})
-    if any(u.user_id == details.user_id and u.workspace == details.workspace
-           for u in request.state.access_config.users):
-        raise HTTPException(409, 'Account already exists; contact the workspace administrator')
-    if not any(u.workspace == details.workspace and u.role == 'admin' and u.enabled
-               for u in request.state.access_config.users):
-        raise HTTPException(409, 'Workspace is not accepting registration; contact its administrator')
     password_hash = await run_in_threadpool(hash_password, details.password.get_secret_value())
-    try:
-        await run_in_threadpool(request.app.state.store.create_registration, details.workspace,
-                                details.user_id, password_hash, datetime.now(timezone.utc).isoformat())
-    except sqlite3.IntegrityError:
-        raise HTTPException(409, 'Registration is already awaiting approval') from None
+    def apply():
+        # Hashing can overlap a CLI change or an approval; recheck the live config under its lock.
+        with edit_accounts(request.state.access_path) as config:
+            if any(u['user_id'] == details.user_id and u['workspace'] == details.workspace
+                   for u in config['users']):
+                raise HTTPException(409, 'Account already exists; contact the workspace administrator')
+            if not any(u['workspace'] == details.workspace and u['role'] == 'admin' and u['enabled']
+                       for u in config['users']):
+                raise HTTPException(409, 'Workspace is not accepting registration; contact its administrator')
+            try:
+                request.app.state.store.create_registration(details.workspace, details.user_id,
+                    password_hash, datetime.now(timezone.utc).isoformat())
+            except sqlite3.IntegrityError:
+                raise HTTPException(409, 'Registration is already awaiting approval') from None
+    await run_in_threadpool(apply)
     return {'status': 'pending_approval', 'user_id': details.user_id, 'workspace': details.workspace}
 
 

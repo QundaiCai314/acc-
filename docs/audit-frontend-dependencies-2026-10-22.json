@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-22",
+  "service": "https://api.osv.dev/v1/querybatch",
+  "queries": [
+    {
+      "package": {
+        "name": "maplibre-gl",
+        "ecosystem": "npm"
+      },
+      "version": "6.4.1"
+    },
+    {
+      "package": {
+        "name": "three",
+        "ecosystem": "npm"
+      },
+      "version": "0.180.0"
+    }
+  ],
+  "result": {
+    "results": [
+      {},
+      {}
+    ]
+  },
+  "scope": "Direct vendored packages only; runtime Python dependencies scanned separately by pip-audit."
+}

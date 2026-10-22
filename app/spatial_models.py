@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from .models import StrictModel
+from .models import StrictModel, validate_query_time
 
 
 Identifier = Annotated[str, Field(pattern=r'^[a-zA-Z0-9_-]{1,64}$')]
@@ -135,8 +135,7 @@ class SpatialQuery(StrictModel):
 
     @model_validator(mode='after')
     def aware_time(self):
-        if self.as_of.tzinfo is None:
-            raise ValueError('as_of must include timezone')
+        validate_query_time(self.as_of, self.max_age_hours)
         return self
 
 

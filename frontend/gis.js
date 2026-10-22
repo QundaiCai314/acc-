@@ -9,6 +9,7 @@ import {
   selectedRelationPaths,
 } from './state.js';
 import { mapSvg } from './map.js';
+import * as maplibregl from './vendor/maplibre-gl.mjs';
 
 let map,
   element,
@@ -344,17 +345,13 @@ function setup() {
 export function mountMap() {
   const slot = document.querySelector('#gis-slot');
   if (!slot) return;
-  if (!window.maplibregl) {
-    slot.innerHTML = mapSvg();
-    return;
-  }
   if (!map) {
     element = document.createElement('div');
     element.className = 'gis-renderer';
     element.setAttribute('aria-label', '交互地图，可拖动平移、滚轮缩放，左侧列表支持键盘选择');
     slot.append(element);
     try {
-      map = new window.maplibregl.Map({
+      map = new maplibregl.Map({
         container: element,
         style: {
           version: 8,
@@ -449,7 +446,7 @@ export function updateMap() {
         window.dispatchEvent(new CustomEvent('gis-select', { detail: f.properties.id }));
       });
       markers.push(
-        new window.maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] })
+        new maplibregl.Marker({ element: el, anchor: 'top', offset: [0, -14] })
           .setLngLat(f.geometry.coordinates)
           .addTo(map),
       );
@@ -463,7 +460,7 @@ export function updateMap() {
       el.style.color = f.properties.color;
       const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       markers.push(
-        new window.maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -8] })
+        new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -8] })
           .setLngLat(mid)
           .addTo(map),
       );
@@ -475,7 +472,7 @@ export function updateMap() {
           (Math.atan2(-(b[1] - a[1]), (b[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180)) * 180) /
           Math.PI;
         markers.push(
-          new window.maplibregl.Marker({
+          new maplibregl.Marker({
             element: arrow,
             rotation: angle,
             rotationAlignment: 'map',
@@ -512,7 +509,7 @@ export function fitMap() {
   if (!coords.length) return;
   const bounds = coords.reduce(
     (b, p) => b.extend(p),
-    new window.maplibregl.LngLatBounds(coords[0], coords[0]),
+    new maplibregl.LngLatBounds(coords[0], coords[0]),
   );
   map.fitBounds(bounds, {
     padding: { top: 140, bottom: 180, left: 80, right: 80 },

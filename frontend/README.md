@@ -4,7 +4,7 @@
 
 视觉采用用户提供的 Kunsthalle Vellum Atlas HTML：默认「纸本测绘」，使用纸色底、黑色框线、红蓝强调和矩形悬浮窗；顶部可切换「粗野档案」「矿物岩彩」。主题同步作用于地图、时间图和三维视口，只保存在当前页面会话中，刷新恢复默认。切换主题保留查询和审核文字草稿及连接身份；文件上传控件重绘后需重新选文件。登录页保留原 HTML 的白色表单、黄色按钮与浅绿分屏设计，接入后端账号登录、注册申请、密码修改和管理员重置码；第三方 OAuth 暂未接入，因此不显示虚假入口。
 
-使用原生 ES Modules 和 CSS，地图采用 MapLibre GL 5.6.2，局部三维采用 Three.js 0.180.0。固定版本脚本和许可证保存在 vendor/，来源及哈希见 vendor/sources.json；无需 Node 或构建步骤。影像瓦片来自 Esri World Imagery，需要联网，地图保留来源署名。部署方应按其服务条款安排生产用量及授权；可在 gis.js 替换瓦片源。第三方只接收瓦片范围请求，图片和令牌不发往瓦片服务。
+使用原生 ES Modules 和 CSS，地图采用 MapLibre GL 6.4.1，局部三维采用 Three.js 0.180.0。固定版本脚本和许可证保存在 vendor/，来源及哈希见 vendor/sources.json；无需 Node 或构建步骤。MapLibre 的主模块、shared 模块和 worker 模块必须一起部署，静态服务器应将 .mjs 作为 JavaScript MIME 类型提供；Python 3.14 的 http.server 已验证。影像瓦片来自 Esri World Imagery，需要联网，地图保留来源署名。部署方应按其服务条款安排生产用量及授权；可在 gis.js 替换瓦片源。第三方只接收瓦片范围请求，图片和令牌不发往瓦片服务。
 
 ## 预览
 
@@ -76,12 +76,15 @@ atlas.css 在 workspace.css 后加载，管理导入设计的三套主题与布�
     # 先启动 8080 静态服务，8002 必须空闲；默认使用本机 Chrome。
     .venv/Scripts/python.exe tests/run_browser_check.py
     .venv/Scripts/python.exe tests/workspace_check.py
+    .venv/Scripts/python.exe tests/vendor_browser_check.py
 
 脚本启动临时 team 后端并在完成后关闭；数据库在系统临时目录，固定测试令牌只用于该进程。模型和搜索使用测试桩，不调用实际供应商、不验证识别质量。浏览器仍可能请求地图瓦片。
 
 覆盖登录失败/成功/刷新清除身份、八个工作台页面 × 320/768/1024/1440 宽度、地图与时间交互、拖框与审核意见保留、控制点、图片筛选、实际 FastAPI 认证链路下的上传/审核/问答/三类工件导入/推理、租约、409、权限、隔离与 HTML 转义。theme_check.py 另检查三套主题中的登录页布局、禁用入口、主视觉加载与画幅覆盖和可选 axe-core 对比度。截图输出到 Git 忽略的 data/frontend-check/。
 
 workspace_check.py 单独验证整条标题栏拖动、方向键移动、边界限制、收起/恢复、放大/还原及审核草稿保留；不需要后端。account_browser_check.py 使用独立管理员与成员页面验证注册、审批、登录、改密、重置码找回和成员管理入口权限；默认连接 8080 前端和 8002 临时后端，run_browser_check.py 会在通用检查后执行它。
+
+vendor_browser_check.py 要求真实 WebGL 画布及地图标签出现，再用独立地图验证本地 worker 处理 GeoJSON 并渲染点位，同时检查不可信署名中的相邻事件属性和 javascript: 链接被清除。该检查不以 SVG 降级视图通过代替地图验证。
 
 如已下载官方 axe-core 4.10.3，可额外执行：
 

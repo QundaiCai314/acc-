@@ -1,14 +1,22 @@
 {
-  "maplibre-gl.js": {
-    "url": "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js",
-    "sha256": "1525f971223d81f169f049f1ce50083e6f1643aa6b0ea0716653a550d2d57fc2"
+  "maplibre-gl.mjs": {
+    "url": "https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl.mjs",
+    "sha256": "97e8b9a39ab8b823d6a0caf9c312237262bc9138a6162d9e29606f5f8d24127d"
+  },
+  "maplibre-gl-shared.mjs": {
+    "url": "https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl-shared.mjs",
+    "sha256": "fcf4d81450df235da0aea74897cc23926774b5228d38ae1de6a7d701c5905785"
+  },
+  "maplibre-gl-worker.mjs": {
+    "url": "https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl-worker.mjs",
+    "sha256": "ce4957017fe705ac2f9ebef206cca966d08d8621756c39326a78cf09757e7d75"
   },
   "maplibre-gl.css": {
-    "url": "https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css",
-    "sha256": "43c1d886b5fdf0aac4e7135bd6f84b823d9f48283a648012665f9be52c01389f"
+    "url": "https://unpkg.com/maplibre-gl@6.4.1/dist/maplibre-gl.css",
+    "sha256": "8e2dbbab312dc57656fbb76e9fa5308c75c9d7c7ba5808a7d55bcdb64cc813fa"
   },
   "maplibre-LICENSE.txt": {
-    "url": "https://unpkg.com/maplibre-gl@5.6.2/LICENSE.txt",
+    "url": "https://unpkg.com/maplibre-gl@6.4.1/LICENSE.txt",
     "sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
   },
   "three.module.js": {

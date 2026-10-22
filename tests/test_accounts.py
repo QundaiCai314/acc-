@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from app.main import create_app
@@ -112,3 +113,48 @@ class AccountFlowTests(unittest.TestCase):
                 'user_id': 'reader', 'password': self.password, 'reset_code': 'wrong'}).status_code, 400)
         self.assertEqual(self.client.post('/auth/reset-password', json={
             'user_id': 'reader', 'password': self.password, 'reset_code': 'wrong'}).status_code, 429)
+
+    def test_cli_disable_permanently_revokes_sessions_tokens_and_reset_codes(self):
+        from app.manage import main
+        session = self.login('reader')
+        code = self.manage('reset', user='reader').json()['reset_code']
+        with (patch('sys.argv', ['manage', '--config', str(self.config), '--user', 'reader', '--disable']),
+              patch('builtins.print')):
+            main()
+        self.assertEqual(self.manage('enable', user='reader').status_code, 200)
+        self.assertEqual(self.client.get('/auth/me', headers=session).status_code, 401)
+        self.assertEqual(self.client.get('/auth/me', headers={'Authorization': 'Bearer reader'}).status_code, 401)
+        self.assertEqual(self.client.post('/auth/reset-password', json={
+            'user_id': 'reader', 'password': self.password, 'reset_code': code}).status_code, 400)
+        self.login('reader')
+
+    def test_full_account_capacity_preserves_pending_registration(self):
+        self.assertEqual(self.register().status_code, 202)
+        body = json.loads(self.config.read_text())
+        for i in range(997):
+            body['users'].append({**body['users'][2], 'user_id': f'fill{i}',
+                'token_sha256': hashlib.sha256(f'fill{i}'.encode()).hexdigest()})
+        self.config.write_text(json.dumps(body))
+        self.assertEqual(self.manage('approve').status_code, 409)
+        self.assertEqual(len(json.loads(self.config.read_text())['users']), 1000)
+        self.assertIsNotNone(self.app.state.store.registration('default', 'new'))
+
+    def test_stale_pending_registration_can_be_rejected_after_interrupted_approval(self):
+        self.app.state.store.create_registration('default', 'reader',
+            hash_password(self.password), '2026-10-22T00:00:00Z')
+        self.assertEqual(self.manage('approve', 'reader').status_code, 409)
+        self.assertEqual(self.manage('reject', 'reader').status_code, 200)
+        self.assertIsNone(self.app.state.store.registration('default', 'reader'))
+        self.login('reader')
+
+    def test_registration_rechecks_accounts_after_password_hashing(self):
+        from app.account_config import edit_accounts
+        def concurrent_create(password):
+            digest = hash_password(password)
+            with edit_accounts(self.config) as body:
+                body['users'].append({**body['users'][2], 'user_id': 'new',
+                    'token_sha256': hashlib.sha256(b'concurrently-created').hexdigest()})
+            return digest
+        with patch('app.auth.hash_password', side_effect=concurrent_create):
+            self.assertEqual(self.register().status_code, 409)
+        self.assertIsNone(self.app.state.store.registration('default', 'new'))

@@ -41,7 +41,9 @@ def main():
                 parser.error(str(exc))
             del password
         token = secrets.token_urlsafe(32) if not current or args.rotate else None
-        account = (current.model_copy(update={'enabled': False}) if args.disable else
+        account = (current.model_copy(update={
+                       'enabled': False, 'token_sha256': hashlib.sha256(secrets.token_bytes(32)).hexdigest(),
+                       'reset_digest': None, 'reset_expires': 0}) if args.disable else
                    Account(user_id=args.user, workspace=args.workspace,
                            role=args.role or (current.role if current else 'viewer'),
                            token_sha256=hashlib.sha256(token.encode()).hexdigest() if token else current.token_sha256,

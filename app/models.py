@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -6,6 +6,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', allow_inf_nan=False)
+
+
+def validate_query_time(value: datetime, max_age_hours: int = 0):
+    if value.tzinfo is None:
+        raise ValueError('as_of must include timezone')
+    try:
+        value.astimezone(timezone.utc) - timedelta(hours=max_age_hours)
+        value - timedelta(hours=max_age_hours)
+    except (OverflowError, ValueError):
+        raise ValueError('as_of and its time window must fit the supported UTC date range') from None
 
 
 class Evidence(StrictModel):

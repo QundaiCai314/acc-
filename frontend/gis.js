@@ -168,7 +168,11 @@ export function mapData() {
           route: !!state.route?.edges?.some((r) => r.id === e.id),
           oneway: !e.bidirectional,
           color:
-            e.status === 'blocked' ? pal.roadBlocked : e.status === 'unknown' ? pal.roadUnknown : pal.roadOpen,
+            e.status === 'blocked'
+              ? pal.roadBlocked
+              : e.status === 'unknown'
+                ? pal.roadUnknown
+                : pal.roadOpen,
           label:
             e.status === 'blocked'
               ? '封闭 ×'
@@ -219,7 +223,8 @@ export function mapData() {
       if (a && b) links.push(line([xy(a), xy(b)], { label: r.predicate, active: paths.has(r) }));
     }
   const gridLines = [];
-  const baseOrigin = entity('building-a')?.coordinates || entities().find((e) => e.coordinates)?.coordinates;
+  const baseOrigin =
+    entity('building-a')?.coordinates || entities().find((e) => e.coordinates)?.coordinates;
   // Local display grid only; no site coordinates means no grid.
   if (baseOrigin)
     for (let d = -320; d <= 320; d += 40) {
@@ -379,8 +384,9 @@ export function mountMap() {
             },
           ],
         },
-        center: [121.4737, 31.2304],
-        zoom: 17,
+        center: [0, 20],
+        zoom: 1,
+        renderWorldCopies: false,
         pitch: 0,
         attributionControl: { compact: true },
         preserveDrawingBuffer: true,
@@ -409,19 +415,42 @@ export function updateMap() {
   if (!ready || !map) return;
   const pal = themePalette();
   if (map.getLayer('background')) map.setPaintProperty('background', 'background-color', pal.bg);
-  if (map.getLayer('tactical-grid')) map.setPaintProperty('tactical-grid', 'line-color', ['case', ['get', 'major'], pal.gridMajor, pal.gridMinor]);
-  if (map.getLayer('buffer-fill')) map.setPaintProperty('buffer-fill', 'fill-color', pal.bufferFill);
-  if (map.getLayer('buffer-line')) map.setPaintProperty('buffer-line', 'line-color', pal.bufferLine);
-  if (map.getLayer('roads-shadow')) map.setPaintProperty('roads-shadow', 'line-color', pal.roadShadow);
+  if (map.getLayer('tactical-grid'))
+    map.setPaintProperty('tactical-grid', 'line-color', [
+      'case',
+      ['get', 'major'],
+      pal.gridMajor,
+      pal.gridMinor,
+    ]);
+  if (map.getLayer('buffer-fill'))
+    map.setPaintProperty('buffer-fill', 'fill-color', pal.bufferFill);
+  if (map.getLayer('buffer-line'))
+    map.setPaintProperty('buffer-line', 'line-color', pal.bufferLine);
+  if (map.getLayer('roads-shadow'))
+    map.setPaintProperty('roads-shadow', 'line-color', pal.roadShadow);
   if (map.getLayer('roads-route')) map.setPaintProperty('roads-route', 'line-color', pal.routeLine);
-  if (map.getLayer('relation-links')) map.setPaintProperty('relation-links', 'line-color', ['case', ['get', 'active'], pal.relActive, pal.relIdle]);
-  if (map.getLayer('camera-cones')) map.setPaintProperty('camera-cones', 'fill-color', ['case', ['get', 'active'], pal.coneActive, pal.coneIdle]);
-  if (map.getLayer('camera-cone-edges')) map.setPaintProperty('camera-cone-edges', 'line-color', pal.coneEdge);
+  if (map.getLayer('relation-links'))
+    map.setPaintProperty('relation-links', 'line-color', [
+      'case',
+      ['get', 'active'],
+      pal.relActive,
+      pal.relIdle,
+    ]);
+  if (map.getLayer('camera-cones'))
+    map.setPaintProperty('camera-cones', 'fill-color', [
+      'case',
+      ['get', 'active'],
+      pal.coneActive,
+      pal.coneIdle,
+    ]);
+  if (map.getLayer('camera-cone-edges'))
+    map.setPaintProperty('camera-cone-edges', 'line-color', pal.coneEdge);
   if (map.getLayer('selected-halo')) {
     map.setPaintProperty('selected-halo', 'circle-color', pal.haloFill);
     map.setPaintProperty('selected-halo', 'circle-stroke-color', pal.haloStroke);
   }
-  if (map.getLayer('object-points')) map.setPaintProperty('object-points', 'circle-color', pal.pointFill);
+  if (map.getLayer('object-points'))
+    map.setPaintProperty('object-points', 'circle-color', pal.pointFill);
   if (map.getLayer('camera-points')) {
     map.setPaintProperty('camera-points', 'circle-color', pal.camFill);
     map.setPaintProperty('camera-points', 'circle-stroke-color', pal.camStroke);
@@ -495,7 +524,7 @@ export function updateMap() {
     map.setLayoutProperty('basemap', 'visibility', state.basemap ? 'visible' : 'none');
     baseOn = state.basemap;
   }
-  const key = (state.client?.base || 'demo') + '|' + state.dataset?.id;
+  const key = (state.client?.base || 'disconnected') + '|' + state.dataset?.id;
   if (datasetKey !== key) {
     datasetKey = key;
     fitMap();
@@ -506,7 +535,10 @@ export function fitMap() {
   const coords = entities()
     .filter((e) => e.coordinates)
     .map((e) => xy(e.coordinates));
-  if (!coords.length) return;
+  if (!coords.length) {
+    map.jumpTo({ center: [0, 20], zoom: 1, bearing: 0, pitch: 0 });
+    return;
+  }
   const bounds = coords.reduce(
     (b, p) => b.extend(p),
     new maplibregl.LngLatBounds(coords[0], coords[0]),

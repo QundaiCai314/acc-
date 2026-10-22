@@ -1,5 +1,6 @@
 """Browser regression for floating windows; run against the local static preview."""
 from pathlib import Path
+from ui_fixture import load_ui_fixture
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -20,6 +21,7 @@ def main():
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.goto('http://127.0.0.1:8080/#command')
         page.wait_for_load_state('networkidle')
+        load_ui_fixture(page)
         window = page.locator('[data-window=time]')
         before = window.bounding_box()
         move(page, '[data-window=time] h2', 170, -120)
@@ -50,7 +52,7 @@ def main():
         assert rect['x'] + rect['width'] <= stage['x'] + stage['width'] + 1
         assert rect['y'] + rect['height'] <= stage['y'] + stage['height'] + 1
         page.locator('.map-tool-dock [data-action=toggle-time]').click()
-        for action, name in [('toggle-objects', 'objects'), ('toggle-layers', 'layers'), ('toggle-graph', 'graph'), ('toggle-intel', 'intel')]:
+        for action, name in [('toggle-data', 'data'), ('toggle-objects', 'objects'), ('toggle-layers', 'layers'), ('toggle-graph', 'graph'), ('toggle-intel', 'intel')]:
             page.locator('.map-tool-dock [data-action=' + action + ']').click()
             panel = page.locator('[data-window=' + name + ']')
             before = panel.bounding_box()

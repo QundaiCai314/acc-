@@ -1,17 +1,23 @@
-import { makeDemo } from './demo.js';
-export const state = {
-  ...makeDemo(),
+export const emptyData = () => ({
+  dataset: null,
   datasets: [],
+  images: [],
+  annotations: [],
+  artifacts: [],
+  syncedAt: null,
+});
+export const state = {
+  ...emptyData(),
   client: null,
-  identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
+  identity: { user_id: '未登录', role: '', workspace: '尚未连接工作空间' },
   screen: 'command',
-  selected: 'east',
-  annotationId: 'ann-east',
-  artifactId: 'reg-demo',
+  selected: '',
+  annotationId: null,
+  artifactId: null,
   search: '',
   hours: 24,
   radius: 100,
-  center: 'building-a',
+  center: '',
   asOf: new Date().toISOString(),
   layers: { objects: true, roads: true, evidence: true, buffer: true },
   zoom: 1,
@@ -28,8 +34,10 @@ export const state = {
 export const entities = () => state.dataset?.snapshot.entities || [];
 export const entity = (id) => entities().find((e) => e.id === id);
 export const effective = (a) => a.review?.approved_annotation || a.annotation;
-export const canReview = () => ['admin', 'reviewer'].includes(state.identity.role);
-export const canWrite = () => state.identity.role !== 'viewer';
+export const canReview = () =>
+  !!state.client && ['admin', 'reviewer'].includes(state.identity.role);
+export const canWrite = () =>
+  !!state.client && ['admin', 'reviewer', 'contributor'].includes(state.identity.role);
 export const activeArtifact = (kind) =>
   state.artifacts.find(
     (a) =>
@@ -88,7 +96,7 @@ Object.assign(state, {
   showLayers: false,
   showIntel: false,
   showObjects: false,
-  showTimeline: true,
+  showTimeline: false,
   showGraph: true,
   basemap: true,
   cameraImage: null,

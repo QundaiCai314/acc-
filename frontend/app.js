@@ -1,7 +1,14 @@
 import { Client } from './api.js';
-import { makeDemo } from './demo.js';
-import { demoQuery, demoRoute } from './demo-query.js';
-import { state, entities, entity, canWrite, clearResults, resetSelection } from './state.js';
+import {
+  state,
+  emptyData,
+  entities,
+  entity,
+  canWrite,
+  clearResults,
+  resetSelection,
+} from './state.js';
+import { inputTemplate, validateRealDataset, validateRealImage } from './intake.js';
 import { esc, icon, notify, options } from './ui.js';
 import * as view from './views.js';
 import * as bench from './workbench.js';
@@ -31,14 +38,21 @@ const datasetPath = () => {
   return '/spatial/datasets/' + encodeURIComponent(state.dataset.id);
 };
 const requireLive = () => {
-  if (!state.client) throw new Error('当前为离线演练。请点击「连接设置」连接后端，再执行此操作。');
+  if (!state.client) throw new Error('尚未连接后端。请先登录或打开「连接设置」，再执行此操作。');
   return state.client;
 };
+function connectionWarning(message) {
+  state.syncError = message;
+  for (const node of document.querySelectorAll('[data-connection-state]')) {
+    node.textContent = message;
+    node.classList.add('connection-warning');
+  }
+}
 function render() {
   const context =
     state.screen +
     '|' +
-    (state.client?.base || 'demo') +
+    (state.client?.base || 'disconnected') +
     '|' +
     state.identity.user_id +
     '|' +
@@ -64,6 +78,13 @@ function render() {
     return;
   }
   app.innerHTML = view.shell(compose(pages));
+  // Keep disconnected/empty workspaces browsable, but never offer local-only success.
+  for (const form of app.querySelectorAll('form')) {
+    const needsDataset = !['dataset-form', 'create-site-form'].includes(form.id);
+    if (!state.client || (needsDataset && !state.dataset))
+      for (const button of form.querySelectorAll('button:not([type=button])'))
+        button.disabled = true;
+  }
   for (const draft of drafts) {
     const form = document.getElementById(draft.id);
     if (!form) continue;
@@ -160,6 +181,7 @@ async function work(fn) {
   if (state.busy) return;
   state.busy = true;
   state.error = '';
+  const initialView = app.firstElementChild;
   const buttons = [...document.querySelectorAll('button')].filter((b) => !b.disabled);
   buttons.forEach((b) => (b.disabled = true));
   document.querySelector('main')?.setAttribute('aria-busy', 'true');
@@ -174,6 +196,15 @@ async function work(fn) {
   } catch (e) {
     state.busy = false;
     state.error = e.message;
+    // Some actions open another panel while awaiting the backend. Restore that
+    // panel's controls from current permissions rather than detached buttons.
+    if (app.firstElementChild !== initialView) render();
+    // Remove an earlier result if a replacement query failed; keep input drafts intact.
+    if (!state.answer) document.querySelectorAll('.answer').forEach((node) => node.remove());
+    if (!state.route) document.querySelectorAll('.route-result').forEach((node) => node.remove());
+    if (!state.references)
+      document.querySelectorAll('.references').forEach((node) => node.remove());
+    updateMap();
     buttons.forEach((b) => (b.disabled = false));
     document.querySelector('main')?.setAttribute('aria-busy', 'false');
     notify(e.message, true);
@@ -192,7 +223,14 @@ async function work(fn) {
   }
 }
 async function loadDataset(id, client = state.client) {
-  if (!id) return { dataset: null, images: [], annotations: [], artifacts: [] };
+  if (!id)
+    return {
+      dataset: null,
+      images: [],
+      annotations: [],
+      artifacts: [],
+      syncedAt: new Date().toISOString(),
+    };
   const path = '/spatial/datasets/' + encodeURIComponent(id);
   const results = await Promise.allSettled([
     client.request(path),
@@ -203,12 +241,22 @@ async function loadDataset(id, client = state.client) {
   const failure = results.find((r) => r.status === 'rejected');
   if (failure) throw failure.reason;
   const [dataset, images, annotations, artifacts] = results.map((r) => r.value);
-  return { dataset, images, annotations, artifacts };
+  validateRealDataset(dataset.snapshot);
+  images.forEach(validateRealImage);
+  return { dataset, images, annotations, artifacts, syncedAt: new Date().toISOString() };
 }
 async function refresh() {
-  if (!state.client) return;
-  const data = await loadDataset(state.dataset?.id);
-  Object.assign(state, data);
+  const client = requireLive();
+  try {
+    const datasets = await client.list('/spatial/datasets', 'datasets');
+    const data = await loadDataset(state.dataset?.id, client);
+    Object.assign(state, data, { datasets, syncError: '' });
+  } catch (e) {
+    if (state.client !== client) throw e;
+    connectionWarning('同步失败 · 当前为上次读取的快照');
+    clearResults();
+    throw e;
+  }
   state.leaseKey = null;
   state.lease = null;
   state.leaseKnown = false;
@@ -223,11 +271,19 @@ function clearIdentity() {
   state.client?.dispose();
   formDrafts.clear();
   render.context = null;
-  Object.assign(state, makeDemo(), {
-    client: null, datasets: [], search: '', cameraImage: null, hoverCamera: null,
-    authMode: 'login', authNotice: '',
+  Object.assign(state, emptyData(), {
+    client: null,
+    datasets: [],
+    search: '',
+    cameraImage: null,
+    hoverCamera: null,
+    authMode: 'login',
+    authNotice: '',
     minimizedWindows: [],
-    identity: { user_id: '演练操作员', role: 'admin', workspace: '离线演练' },
+    syncError: '',
+    showTimeline: false,
+    showData: false,
+    identity: { user_id: '未登录', role: '', workspace: '尚未连接工作空间' },
   });
   resetSelection();
   dialog.close();
@@ -244,17 +300,32 @@ async function connectClient(candidate) {
   try {
     const identity = await candidate.request('/auth/me');
     const datasets = await candidate.list('/spatial/datasets', 'datasets');
-    const data = await loadDataset(datasets[0]?.id, candidate);
+    // Never automatically select an old exercise as an operational site.
+    const data = await loadDataset(null, candidate);
     // Revoke the previous password session before replacing its identity.
-    if (state.client?.session) await state.client.request('/auth/logout', {}).catch((e) => {
-      if (e.status !== 401) throw e;
-    });
+    if (state.client?.session)
+      await state.client.request('/auth/logout', {}).catch((e) => {
+        if (e.status !== 401) throw e;
+      });
     clearIdentity();
-    Object.assign(state, data, { client: candidate, identity, datasets, search: '',
-      serverBase: candidate.base, loginWorkspace: identity.workspace });
+    Object.assign(state, data, {
+      client: candidate,
+      identity,
+      datasets,
+      search: '',
+      serverBase: candidate.base,
+      loginWorkspace: identity.workspace,
+    });
     candidate.onUnauthorized = () => expireLogin(candidate);
-    if (candidate.expiresAt) candidate.expiryTimer = setTimeout(
-      () => expireLogin(candidate), Math.max(0, new Date(candidate.expiresAt) - Date.now()));
+    candidate.onTransportError = () => {
+      if (state.client !== candidate) return;
+      connectionWarning('连接中断 · 显示上次读取的快照，请刷新重连');
+    };
+    if (candidate.expiresAt)
+      candidate.expiryTimer = setTimeout(
+        () => expireLogin(candidate),
+        Math.max(0, new Date(candidate.expiresAt) - Date.now()),
+      );
     resetSelection();
     if (state.screen === 'login') go('command');
   } catch (e) {
@@ -277,7 +348,9 @@ function connectDialog() {
       esc(state.client?.base || 'http://127.0.0.1:8000') +
       '"></label><label>个人访问令牌<input name="token" type="password" autocomplete="off" placeholder="本机 local 模式可留空"></label><button class="button primary full">连接并读取现场</button></form><p class="meta">跨域部署需在后端 DISASTER_CORS_ORIGINS 中允许当前页面来源。团队远程连接使用 HTTPS。</p>' +
       '<button class="text-button" data-action="open-login">打开登录页 →</button>' +
-      (state.client && state.identity.user_id !== 'local' ? '<button class="button" data-action="account-settings">账号管理</button>' : '') +
+      (state.client && state.identity.user_id !== 'local'
+        ? '<button class="button" data-action="account-settings">账号管理</button>'
+        : '') +
       (state.client
         ? '<button class="button danger full" data-action="disconnect">退出登录</button>'
         : ''),
@@ -291,12 +364,14 @@ function datasetsDialog() {
   modal(
     '<h2>选择工作现场</h2><form id="select-dataset-form"><label>当前工作空间内的现场<select name="id" required>' +
       options(
-        state.datasets.map((d) => [d.id, d.snapshot.title]),
+        state.datasets
+          .filter((d) => d.snapshot.coordinate_basis === 'measured')
+          .map((d) => [d.id, d.snapshot.title]),
         state.dataset?.id,
       ) +
       '</select></label><button class="button primary full" ' +
-      (!state.datasets.length ? 'disabled' : '') +
-      '>打开现场</button></form><p class="muted">没有现场时，可到「资料导入」建立地图快照。</p>',
+      (!state.datasets.some((d) => d.snapshot.coordinate_basis === 'measured') ? 'disabled' : '') +
+      '>打开现场</button></form><p class="muted">仅列出标记为实测的现场。历史演练记录保留在后端，不装入工作台；含演练图片的混合现场也不能用于此工作台。</p><a class="button" href="#import" data-action="close-dialog">导入真实现场</a>',
   );
 }
 async function readJSON(file) {
@@ -309,22 +384,13 @@ async function readJSON(file) {
   }
 }
 function download(kind) {
-  const demo = makeDemo(),
-    mapping = {
-      networks: 'road_network',
-      registrations: 'registration',
-      relations: 'relation_set',
-    };
-  const payload =
-    kind === 'dataset'
-      ? demo.dataset.snapshot
-      : demo.artifacts.find((a) => a.artifact_type === mapping[kind]).snapshot;
+  const payload = inputTemplate(kind);
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
   );
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'exercise-' + kind + '.json';
+  a.download = 'blank-' + kind + '.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -339,9 +405,8 @@ async function query() {
     as_of: state.asOf,
     max_age_hours: state.hours,
   };
-  state.answer = state.client
-    ? await state.client.request(datasetPath() + '/query', payload)
-    : demoQuery(payload);
+  state.answer = null;
+  state.answer = await requireLive().request(datasetPath() + '/query', payload);
 }
 function setSelection(id) {
   state.selected = id;
@@ -354,6 +419,10 @@ function setSelection(id) {
   focusMap(id);
 }
 const actions = {
+  'toggle-data': () => {
+    state.showData = !state.showData;
+    render();
+  },
   'open-login': () => {
     dialog.close();
     go('login');
@@ -375,9 +444,10 @@ const actions = {
     render();
     document.querySelector('.ds-mode-tabs [aria-pressed=true]')?.focus();
   },
-  'login-help': () => actions['auth-mode']({dataset: {value: 'reset'}}),
+  'login-help': () => actions['auth-mode']({ dataset: { value: 'reset' } }),
   'account-settings': () => modal(passwordForm()),
-  'manage-members': () => work(async () => modal(membersPanel(await requireLive().request('/auth/members')))),
+  'manage-members': () =>
+    work(async () => modal(membersPanel(await requireLive().request('/auth/members')))),
   'login-slide': (button) => {
     document.querySelector('.ds-login-right').dataset.slide = button.dataset.value;
     for (const bar of document.querySelectorAll('.ds-carousel-bar'))
@@ -387,7 +457,9 @@ const actions = {
     if (!['vellum', 'brutalist', 'mineral'].includes(b.dataset.value)) return;
     state.artTheme = b.dataset.value;
     render();
-    document.querySelector('[data-action="art-theme"][data-value="' + state.artTheme + '"]')?.focus();
+    document
+      .querySelector('[data-action="art-theme"][data-value="' + state.artTheme + '"]')
+      ?.focus();
   },
   'toggle-objects': () => {
     state.showObjects = !state.showObjects;
@@ -428,6 +500,7 @@ const actions = {
     ];
     const field = {
       objects: 'showObjects',
+      data: 'showData',
       layers: 'showLayers',
       time: 'showTimeline',
       intel: 'showIntel',
@@ -447,6 +520,7 @@ const actions = {
     state.minimizedWindows = state.minimizedWindows.filter((w) => w.id !== id);
     const field = {
       objects: 'showObjects',
+      data: 'showData',
       layers: 'showLayers',
       time: 'showTimeline',
       intel: 'showIntel',
@@ -475,14 +549,16 @@ const actions = {
       if (state.client) state.datasets = await state.client.list('/spatial/datasets', 'datasets');
       datasetsDialog();
     }),
-  disconnect: () => work(async () => {
-    if (state.client) await state.client.request('/auth/logout', {}).catch((e) => {
-      if (e.status !== 401) throw e;
-    });
-    clearIdentity();
-    state.screen = 'login';
-    history.replaceState(null, '', '#login');
-  }),
+  disconnect: () =>
+    work(async () => {
+      if (state.client)
+        await state.client.request('/auth/logout', {}).catch((e) => {
+          if (e.status !== 401) throw e;
+        });
+      clearIdentity();
+      state.screen = 'login';
+      history.replaceState(null, '', '#login');
+    }),
   refresh: () => work(refresh),
   'dismiss-error': () => {
     state.error = '';
@@ -605,26 +681,18 @@ const actions = {
   },
   lease: (b) =>
     work(async () => {
+      const client = requireLive();
       const a = state.annotations.find((a) => a.id === state.annotationId);
       if (!a) return;
-      if (state.client) {
-        const held =
-          state.lease &&
-          new Date(state.lease.expires_at) > new Date() &&
-          state.lease.user_id !== state.identity.user_id;
-        const result = await state.client.request(
-          '/spatial/annotations/' + a.id + '/' + (held ? 'lease' : b.dataset.value),
-          held ? undefined : {},
-        );
-        state.lease = result.lease;
-      } else
-        state.lease =
-          b.dataset.value === 'release'
-            ? null
-            : {
-                user_id: state.identity.user_id,
-                expires_at: new Date(Date.now() + 300000).toISOString(),
-              };
+      const held =
+        state.lease &&
+        new Date(state.lease.expires_at) > new Date() &&
+        state.lease.user_id !== state.identity.user_id;
+      const result = await client.request(
+        '/spatial/annotations/' + a.id + '/' + (held ? 'lease' : b.dataset.value),
+        held ? undefined : {},
+      );
+      state.lease = result.lease;
       state.leaseKey = a.id;
       state.leaseKnown = true;
     }),
@@ -850,33 +918,63 @@ const submits = {
     checkPasswords(d);
     const client = new Client(d.get('base'));
     try {
-      await client.request('/auth/register', {user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password')});
-      state.serverBase = client.base; state.loginWorkspace = d.get('workspace').trim();
-      state.authMode = 'login'; state.authNotice = '申请已提交。管理员批准后，即可使用刚设置的账号密码登录。';
-    } finally { client.dispose(); }
+      await client.request('/auth/register', {
+        user_id: d.get('user_id').trim(),
+        workspace: d.get('workspace').trim(),
+        password: d.get('password'),
+      });
+      state.serverBase = client.base;
+      state.loginWorkspace = d.get('workspace').trim();
+      state.authMode = 'login';
+      state.authNotice = '申请已提交。管理员批准后，即可使用刚设置的账号密码登录。';
+    } finally {
+      client.dispose();
+    }
   },
   'reset-password-form': async (f, d) => {
     checkPasswords(d);
     const client = new Client(d.get('base'));
     try {
-      await client.request('/auth/reset-password', {user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password'), reset_code: d.get('reset_code').trim()});
+      await client.request('/auth/reset-password', {
+        user_id: d.get('user_id').trim(),
+        workspace: d.get('workspace').trim(),
+        password: d.get('password'),
+        reset_code: d.get('reset_code').trim(),
+      });
       clearIdentity();
-      state.serverBase = client.base; state.loginWorkspace = d.get('workspace').trim();
+      state.serverBase = client.base;
+      state.loginWorkspace = d.get('workspace').trim();
       state.authNotice = '密码已重置，旧登录会话已失效。请使用新密码登录。';
-    } finally { client.dispose(); }
+    } finally {
+      client.dispose();
+    }
   },
   'change-password-form': async (f, d) => {
     checkPasswords(d);
-    await requireLive().request('/auth/password', {current_password: d.get('current_password'), password: d.get('password')});
+    await requireLive().request('/auth/password', {
+      current_password: d.get('current_password'),
+      password: d.get('password'),
+    });
     clearIdentity();
-    state.screen = 'login'; history.replaceState(null, '', '#login');
+    state.screen = 'login';
+    history.replaceState(null, '', '#login');
     state.authNotice = '密码已修改，请重新登录。';
   },
   'member-form': async (f, d, action) => {
     const client = requireLive();
-    const result = await client.request('/auth/members', {user_id: d.get('user_id'), action, role: d.get('role') || 'viewer'});
+    const result = await client.request('/auth/members', {
+      user_id: d.get('user_id'),
+      action,
+      role: d.get('role') || 'viewer',
+    });
     if (result.reset_code) {
-      modal('<h2>一次性重置码</h2><p>账号：' + esc(d.get('user_id')) + ' · 有效期 30 分钟。通过安全渠道交给本人，此码仅显示一次。</p><label>重置码<input readonly autocomplete="off" value="' + esc(result.reset_code) + '"></label><button class="button" data-action="manage-members">返回成员管理</button>');
+      modal(
+        '<h2>一次性重置码</h2><p>账号：' +
+          esc(d.get('user_id')) +
+          ' · 有效期 30 分钟。通过安全渠道交给本人，此码仅显示一次。</p><label>重置码<input readonly autocomplete="off" value="' +
+          esc(result.reset_code) +
+          '"></label><button class="button" data-action="manage-members">返回成员管理</button>',
+      );
     } else modal(membersPanel(await client.request('/auth/members')));
   },
   'login-form': async (f, d) => {
@@ -884,41 +982,74 @@ const submits = {
     let result;
     try {
       result = await candidate.request('/auth/login', {
-        user_id: d.get('user_id').trim(), workspace: d.get('workspace').trim(), password: d.get('password'),
+        user_id: d.get('user_id').trim(),
+        workspace: d.get('workspace').trim(),
+        password: d.get('password'),
       });
-    } catch (e) { candidate.dispose(); throw e; }
+    } catch (e) {
+      candidate.dispose();
+      throw e;
+    }
     candidate.token = result.access_token;
     candidate.session = true;
     candidate.expiresAt = result.expires_at;
     await connectClient(candidate);
   },
   'quick-question': async (form, data) => {
+    const client = requireLive();
     const question = data.get('question');
+    clearResults();
     state.showIntel = true;
     render();
     document.querySelector('#question').value = question;
-    if (state.client)
-      state.answer = await state.client.request(datasetPath() + '/ask', { question });
+    state.answer = await client.request(datasetPath() + '/ask', { question });
   },
   'connect-form': async (f, d) => {
     await connectClient(new Client(d.get('base'), d.get('token').trim()));
   },
   'select-dataset-form': async (f, d) => {
     Object.assign(state, await loadDataset(d.get('id')));
+    state.syncError = '';
     resetSelection();
     dialog.close();
   },
   'dataset-form': async (f, d) => {
     const client = requireLive();
     const payload = await readJSON(d.get('file'));
+    validateRealDataset(payload);
     const result = await client.request('/spatial/datasets', payload);
     state.datasets = await client.list('/spatial/datasets', 'datasets');
-    Object.assign(state, await loadDataset(result.id));
+    Object.assign(state, await loadDataset(result.id), { syncError: '' });
+    resetSelection();
+  },
+  'create-site-form': async (f, d) => {
+    const client = requireLive();
+    const lat = d.get('latitude').trim(),
+      lon = d.get('longitude').trim();
+    if (!!lat !== !!lon) throw new Error('经纬度需同时填写；位置未知时请同时留空。');
+    const payload = {
+      title: d.get('title').trim(),
+      coordinate_basis: 'measured',
+      map_source: d.get('source').trim(),
+      curator: state.identity.user_id,
+      entities: [
+        {
+          id: d.get('entity_id').trim(),
+          name: d.get('entity_name').trim(),
+          kind: d.get('kind'),
+          coordinates: lat ? { latitude: Number(lat), longitude: Number(lon) } : null,
+        },
+      ],
+    };
+    const result = await client.request('/spatial/datasets', payload);
+    state.datasets = await client.list('/spatial/datasets', 'datasets');
+    Object.assign(state, await loadDataset(result.id), { syncError: '' });
     resetSelection();
   },
   'image-form': async (f, d) => {
     const client = requireLive(),
       file = d.get('file');
+    validateRealImage({ evidence_basis: d.get('evidence_basis'), camera_pose: cameraPayload(d) });
     if (!file.size || file.size > 5000000 || !['image/png', 'image/jpeg'].includes(file.type))
       throw new Error('请选择不超过 5 MB 的 PNG 或 JPEG 图片。');
     const base64 = await new Promise((resolve, reject) => {
@@ -941,6 +1072,7 @@ const submits = {
   'ask-form': async (f, d) => {
     const client = requireLive(),
       kind = d.get('kind');
+    clearResults();
     if (kind === 'references/search') {
       state.references = await client.request(datasetPath() + '/' + kind, {
         query: d.get('question'),
@@ -954,6 +1086,8 @@ const submits = {
     }
   },
   'route-form': async (f, d) => {
+    const client = requireLive();
+    state.route = null;
     const payload = {
       network_id: d.get('network_id'),
       start_entity_id: d.get('start_entity_id'),
@@ -961,11 +1095,10 @@ const submits = {
       mode: d.get('mode'),
       as_of: new Date(d.get('as_of')).toISOString(),
     };
-    state.route = state.client
-      ? await state.client.request(datasetPath() + '/route', payload)
-      : demoRoute(payload);
+    state.route = await client.request(datasetPath() + '/route', payload);
   },
   'review-form': async (f, d, decision) => {
+    const client = requireLive();
     const a = state.annotations.find((r) => r.id === state.annotationId);
     if (!a) throw new Error('未找到候选，请刷新后重试。');
     if (!d.get('note')?.trim()) throw new Error('请填写审核或撤回说明。');
@@ -985,22 +1118,11 @@ const submits = {
         bbox,
       };
     }
-    if (state.client) {
-      await state.client.request(
-        '/spatial/annotations/' + a.id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
-        payload,
-      );
-      await refresh();
-    } else {
-      a.status = { approve: 'approved', reject: 'rejected', withdraw: 'withdrawn' }[decision];
-      if (decision !== 'withdraw')
-        a.review = {
-          ...payload,
-          approved_annotation: decision === 'approve' ? payload.corrected_annotation : null,
-          created_at: new Date().toISOString(),
-        };
-      clearResults();
-    }
+    await client.request(
+      '/spatial/annotations/' + a.id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
+      payload,
+    );
+    await refresh();
   },
   'artifact-form': async (f, d) => {
     const client = requireLive();
@@ -1010,26 +1132,20 @@ const submits = {
     if (f.dataset.kind === 'registrations') state.artifactId = record.id;
   },
   'artifact-review-form': async (f, d, decision) => {
+    const client = requireLive();
     const id = f.dataset.id,
       note = d.get('note');
-    if (state.client) {
-      await state.client.request(
-        '/spatial/artifacts/' + id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
-        decision === 'withdraw'
-          ? { note, reviewer: state.identity.user_id }
-          : { action: decision, note },
-      );
-      await refresh();
-    } else {
-      const a = state.artifacts.find((r) => r.id === id);
-      a.status = { approve: 'approved', reject: 'rejected', withdraw: 'withdrawn' }[decision];
-      if (decision !== 'withdraw')
-        a.review = { reviewer: state.identity.user_id, note, created_at: new Date().toISOString() };
-      clearResults();
-    }
+    await client.request(
+      '/spatial/artifacts/' + id + '/' + (decision === 'withdraw' ? 'withdraw' : 'review'),
+      decision === 'withdraw'
+        ? { note, reviewer: state.identity.user_id }
+        : { action: decision, note },
+    );
+    await refresh();
   },
   'reason-form': async (f, d) => {
     const client = requireLive();
+    state.answer = null;
     const all_of = [...f.querySelectorAll('.condition-row')].map((row) => {
       const relation = row.querySelector('[name=relation]').value;
       return {
@@ -1062,7 +1178,10 @@ const submits = {
   },
 };
 document.addEventListener('submit', (e) => {
-  const fn = submits[e.target.id] || submits[[...e.target.classList].find((c) => submits[c])];
+  // A control named "id" shadows HTMLFormElement.id (e.g. the site picker).
+  const fn =
+    submits[e.target.getAttribute('id')] ||
+    submits[[...e.target.classList].find((c) => submits[c])];
   if (!fn) return;
   e.preventDefault();
   const data = new FormData(e.target),

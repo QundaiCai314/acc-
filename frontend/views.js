@@ -85,11 +85,15 @@ export function shell(content) {
           id +
           '" aria-pressed="' +
           (state.artTheme === id) +
-          '">' + label + '</button>',
+          '">' +
+          label +
+          '</button>',
       )
       .join('') +
     '</div>' +
-    badge(state.client ? 'approved' : 'pending_review', state.client ? '后端已连接' : '离线演练') +
+    '<span class="connection-state" data-connection-state>' +
+    esc(state.syncError || (state.client ? '后端已连接' : '未连接后端')) +
+    '</span>' +
     '<button class="connection" data-action="connect" aria-label="连接设置">' +
     icon('settings') +
     '<span>连接设置</span></button><a class="user-avatar" href="#login" aria-label="打开登录页">' +
@@ -100,14 +104,16 @@ export function shell(content) {
     esc(
       { admin: '管理员', reviewer: '审核员', contributor: '采集员', viewer: '观察员' }[
         state.identity.role
-      ],
+      ] || '访客',
     ) +
-    '</small></span></div></header><div class="workspace-body"><div class="contextbar"><div><span class="live-dot"></span><strong>' +
+    '</small></span></div></header><div class="workspace-body"><div class="contextbar"><div><span class="site-indicator ' +
+    (state.dataset ? 'has-site' : '') +
+    '"></span><strong>' +
     esc(state.dataset?.snapshot.title || '尚未选择现场') +
     '</strong></div><div><span class="workspace-label">' +
     esc(state.identity.workspace) +
     '</span><button class="text-button" data-action="refresh" ' +
-    disabled(!state.busy) +
+    disabled(state.client && !state.busy) +
     '>' +
     icon('refresh') +
     '刷新</button><button class="text-button" data-action="datasets">切换现场 ↓</button></div></div>' +
@@ -126,7 +132,7 @@ export function shell(content) {
     icon('shield') +
     (state.client
       ? '审核由后端校验 · 当前工作空间 ' + esc(state.identity.workspace)
-      : '演练沙盒 · 操作仅在当前页面内生效') +
+      : '尚未连接数据源 · 登录后读取团队现场') +
     '</span><span>观察证据 ≠ 当前通行安全</span></footer></div>'
   );
 }
@@ -295,14 +301,31 @@ export function uploadForm() {
     '<form id="image-form" class="form-grid"><label class="upload-zone">' +
     icon('upload') +
     '<strong>选择现场图片</strong><span>PNG / JPEG · 单张不超过 5 MB</span><input name="file" type="file" accept="image/png,image/jpeg" required></label><label>采集时间<input name="captured_at" type="datetime-local" value="' +
-    localTime() +
-    '" required></label><label>素材性质<select name="evidence_basis"><option value="exercise">演练素材</option><option value="field_image">真实现场图片</option></select></label><label class="wide">来源说明<input name="source" required maxlength="2000" placeholder="采集人员、设备或原始来源"></label>' +
+    '' +
+    '" required></label><label>素材性质<select name="evidence_basis"><option value="field_image">真实现场图片</option></select></label><label class="wide">来源说明<input name="source" required maxlength="2000" placeholder="采集人员、设备或公开来源 URL；注明时间精度"></label><p class="meta wide">填写原始采集时间，不默认使用上传时间。未知位置或朝向请留空；底图影像不是灾后现场证据。</p>' +
     cameraFields() +
     '<button class="button primary wide" ' +
-    disabled(canWrite() && !state.busy) +
+    disabled(canWrite() && state.dataset && !state.busy) +
     '>' +
     icon('upload') +
     '上传至当前现场</button></form>'
+  );
+}
+function siteForm() {
+  return (
+    '<form id="create-site-form" class="form-grid">' +
+    '<label class="wide">现场名称<input name="title" required maxlength="200" placeholder="实际街区、园区或采集任务名称"></label>' +
+    '<label>对象编号<input name="entity_id" required pattern="[a-zA-Z0-9_-]{1,64}" maxlength="64" placeholder="来源中的唯一编号"></label>' +
+    '<label>对象类别<select name="kind">' +
+    options(Object.entries(kinds), 'other') +
+    '</select></label>' +
+    '<label class="wide">对象名称<input name="entity_name" required maxlength="200" placeholder="首个真实建筑、入口、道路或待定位对象"></label>' +
+    '<label>纬度 / WGS84<input name="latitude" type="number" step="any" min="-90" max="90" placeholder="未知可留空"></label>' +
+    '<label>经度 / WGS84<input name="longitude" type="number" step="any" min="-180" max="180" placeholder="未知可留空"></label>' +
+    '<label class="wide">数据来源<input name="source" required maxlength="2000" placeholder="测绘文件、采集记录或公开来源 URL"></label>' +
+    '<button class="button primary wide" ' +
+    disabled(canWrite() && !state.busy) +
+    '>建立真实现场</button></form>'
   );
 }
 export function importPage() {
@@ -312,11 +335,13 @@ export function importPage() {
     '<div class="two-columns">' +
     panel(
       '01 / 地图快照',
-      '<p class="muted">包含建筑、入口和资源的 WGS84 点位。快照提交后不可覆盖。</p><form id="dataset-form"><label class="upload-zone">' +
+      '<p class="muted">使用真实采集或测绘来源。未知坐标可留空，快照提交后不可覆盖。</p>' +
+        siteForm() +
+        '<details class="intake-json"><summary>批量导入地图 JSON</summary><form id="dataset-form"><label class="upload-zone">' +
         icon('map') +
         '<strong>导入地图 JSON</strong><span>地图来源、录入者、坐标性质与对象列表</span><input type="file" name="file" accept=".json,application/json" required></label><button class="button primary" ' +
         disabled(canWrite() && !state.busy) +
-        '>建立新现场</button></form><button class="text-button" data-action="download" data-kind="dataset">下载地图模板 ↓</button>',
+        '>建立新现场</button></form><button class="text-button" data-action="download" data-kind="dataset">下载空白地图模板 ↓</button><p class="meta">模板没有示例数据，需按真实来源填写必填字段后导入。</p></details>',
     ) +
     panel('02 / 现场图片', uploadForm(), state.dataset ? '当前现场已选择' : '请先建立现场') +
     '</div>' +
@@ -348,12 +373,12 @@ function artifactImport(kind, label) {
     '"><label>导入' +
     label +
     ' JSON<input type="file" name="file" accept=".json,application/json" required></label><div class="button-row"><button class="button" ' +
-    disabled(canWrite() && !state.busy) +
+    disabled(canWrite() && state.dataset && !state.busy) +
     '>' +
     icon('upload') +
     '导入待审快照</button><button type="button" class="text-button" data-action="download" data-kind="' +
     kind +
-    '">模板 ↓</button></div></form>'
+    '">空白模板 ↓</button></div><p class="meta">填写真实来源、有效时间及测量值；模板中的空值不能直接提交。</p></form>'
   );
 }
 function artifactReview(a) {
@@ -493,7 +518,7 @@ export function plans(embedded = false) {
           activeArtifact('road_network')?.id,
         ) +
         '</select></label><div class="two-fields"><label>起点<select name="start_entity_id">' +
-        entityOptions(state.client ? entities()[0]?.id : 'west') +
+        entityOptions(entities()[0]?.id) +
         '</select></label><label>终点<select name="end_entity_id">' +
         entityOptions(state.selected) +
         '</select></label></div><label>通行方式<select name="mode"><option value="walk">步行</option><option value="vehicle">车辆</option></select></label><label>查询时刻<input type="datetime-local" name="as_of" value="' +

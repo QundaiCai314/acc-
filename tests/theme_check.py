@@ -2,6 +2,7 @@
 import argparse
 import json
 from pathlib import Path
+from ui_fixture import load_ui_fixture
 
 from playwright.sync_api import expect, sync_playwright
 
@@ -20,6 +21,7 @@ def main():
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto('http://127.0.0.1:8080/#review')
         page.wait_for_load_state('networkidle')
+        load_ui_fixture(page)
         grid = page.evaluate("""async () => {
             const {state} = await import('./state.js'), {mapData} = await import('./gis.js');
             const dataset = state.dataset;

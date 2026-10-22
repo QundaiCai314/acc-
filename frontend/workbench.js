@@ -6,6 +6,7 @@ import {
   visibleAnnotations,
   activeArtifact,
   canReview,
+  canWrite,
   reviewedRelations,
 } from './state.js';
 import {
@@ -102,7 +103,7 @@ export function analysis() {
           '<button class="button" data-action="analyze" data-id="' +
           esc(img.id) +
           '" ' +
-          (state.identity.role === 'viewer' ? 'disabled' : '') +
+          (!canWrite() ? 'disabled' : '') +
           '>' +
           icon('scan') +
           '请求 AI 分析</button></div></div></article>'
@@ -231,7 +232,7 @@ function sidebar() {
     '" placeholder="名称、位置或对象 ID"></label><div class="sidebar-tabs"><span class="active">对象目录</span><span>' +
     badge('approved', '已审关系') +
     '</span></div><div class="entity-tree">' +
-    tree() +
+    (entities().length ? tree() : empty('尚无空间对象', '连接现场并导入真实来源的对象数据。')) +
     '</div><div class="side-section"><h3>空间筛选</h3><label>中心对象<select data-control="center">' +
     options(
       entities().map((e) => [e.id, e.name]),
@@ -241,7 +242,9 @@ function sidebar() {
     state.radius +
     ' m</output><input aria-label="距离半径" type="range" min="25" max="500" step="25" value="' +
     state.radius +
-    '" data-control="radius"></label><button class="button primary full" data-action="query">' +
+    '" data-control="radius"></label><button class="button primary full" data-action="query" ' +
+    (!state.client || !entity(state.center)?.coordinates ? 'disabled' : '') +
+    '>' +
     icon('search') +
     '检索已审核障碍物</button></div><div class="object-audit"><span>' +
     icon('shield') +
@@ -294,7 +297,7 @@ function timeline() {
         '" y="' +
         (32 - (count / max) * 28) +
         '" width="7" height="' +
-        Math.max(1, (count / max) * 28) +
+        (count / max) * 28 +
         '" fill="' +
         ((i / 36) * 100 >= left && (i / 36) * 100 <= right ? 'var(--mint)' : 'var(--line)') +
         '"/>',
@@ -388,17 +391,17 @@ function intel() {
         '</h2><div class="object-coordinates">' +
         icon('map') +
         (e.coordinates
-          ? e.coordinates.latitude.toFixed(6) +
-            '° N · ' +
-            e.coordinates.longitude.toFixed(6) +
-            '° E'
+          ? Math.abs(e.coordinates.latitude).toFixed(6) +
+            (e.coordinates.latitude < 0 ? '° S · ' : '° N · ') +
+            Math.abs(e.coordinates.longitude).toFixed(6) +
+            (e.coordinates.longitude < 0 ? '° W' : '° E')
           : '暂无坐标') +
         '</div><div class="object-stats"><span><b>' +
         visibleAnnotations().filter((a) => effective(a).entity_id === e.id).length +
         '</b> 条观察</span><span>' +
         badge(
           state.dataset.snapshot.coordinate_basis === 'exercise' ? 'pending_review' : 'approved',
-          state.dataset.snapshot.coordinate_basis === 'exercise' ? '演练坐标' : '实测坐标',
+          e.coordinates ? '来源标记：实测' : '未定位',
         ) +
         '</span></div>' +
         (ann
@@ -427,8 +430,78 @@ function intel() {
     '向现场证据提问</label><textarea id="question" name="question" minlength="2" maxlength="1000" required placeholder="A 楼 100 米内，哪些入口有障碍物？"></textarea><div class="ask-actions"><select name="kind" aria-label="问答类型"><option value="ask">图片证据</option><option value="reason/ask">复杂空间关系</option><option value="references/search">未核实背景搜索</option></select><button class="icon-button primary" aria-label="提交问题">' +
     icon('arrow') +
     '</button></div><small>' +
-    (state.client ? '请求已配置模型，可能产生费用' : '离线演练 · 连接后可调用模型') +
+    (state.client
+      ? '请求后端模型；配置和可用性以服务响应为准，可能产生费用'
+      : '连接后端并选择现场后可提问') +
     '</small></form></aside>'
+  );
+}
+export function dataStatus() {
+  const located = entities().filter((e) => e.coordinates).length;
+  const approved = state.annotations.filter((a) => a.status === 'approved').length;
+  return (
+    '<div class="data-status"><p class="connection-state" data-connection-state>' +
+    esc(state.syncError || (state.client ? '后端已连接 · 手动刷新快照' : '尚未连接后端')) +
+    '</p><dl class="source-details"><dt>服务</dt><dd>' +
+    esc(state.client?.base || '未连接') +
+    '</dd><dt>上次同步</dt><dd>' +
+    (state.syncedAt ? time(state.syncedAt) : '尚未同步') +
+    '</dd><dt>地图来源</dt><dd>' +
+    esc(state.dataset?.snapshot.map_source || '尚未选择现场') +
+    '</dd><dt>录入者</dt><dd>' +
+    esc(state.dataset?.snapshot.curator || '—') +
+    '</dd></dl><div class="data-metrics">' +
+    [
+      ['已定位对象', located],
+      ['现场图片', state.images.length],
+      ['已审观察', approved],
+    ]
+      .map(
+        ([label, count]) =>
+          '<div><strong>' +
+          (state.dataset ? count : '—') +
+          '</strong><span>' +
+          label +
+          '</span></div>',
+      )
+      .join('') +
+    '</div><div class="readiness-list">' +
+    [
+      ['地图与距离', located > 0, '待导入坐标'],
+      ['道路可达', !!activeArtifact('road_network'), '待审核有效路网'],
+      ['三维核验', !!activeArtifact('registration'), '待审核有效配准'],
+      ['关系查证', !!activeArtifact('relation_set'), '待审核关系快照'],
+    ]
+      .map(
+        ([label, ready, missing]) =>
+          '<div><span>' +
+          label +
+          '</span><small class="' +
+          (ready ? 'ready' : '') +
+          '">' +
+          (ready ? '数据已具备' : missing) +
+          '</small></div>',
+      )
+      .join('') +
+    '</div><p class="meta">实测标记来自录入声明。数据来源、准确性和时效需人工核验；AI 与搜索是否可用以实际请求为准。</p></div>'
+  );
+}
+export function onboarding() {
+  if (state.dataset) return '';
+  return (
+    '<section class="workspace-onboarding" aria-label="连接现场数据"><span class="eyebrow">FIELD DATA / 空间查证工作台</span><h2>' +
+    (state.client ? '选择你的工作现场' : '连接真实现场，从证据开始') +
+    '</h2><p>' +
+    (state.client
+      ? '已读取团队现场目录。打开已有现场，或导入有明确来源的地图与图片。'
+      : '登录后读取团队资料。当前未加载现场、图片或路网；世界底图仅供位置参考。') +
+    '</p><div class="onboarding-actions">' +
+    (state.client
+      ? '<button class="button primary" data-action="datasets">选择现场</button><a href="#import" class="button">导入真实资料</a>'
+      : '<a href="#login" class="button primary">登录工作空间</a><button class="button" data-action="connect">连接本机后端</button>') +
+    '</div><div class="onboarding-foot">' +
+    icon('shield') +
+    '来源可查 · 候选待审 · 未知位置保持未定位</div></section>'
   );
 }
 export function command() {
@@ -440,9 +513,9 @@ export function command() {
     '">' +
     sidebar() +
     '<section class="operating-map"><div class="map-heading"><div><span class="eyebrow">COMMON OPERATING PICTURE</span><h1>现场态势</h1></div><div class="hud-stats"><span><i class="dot red"></i>' +
-    obstacles.length +
+    (state.dataset ? obstacles.length : '—') +
     ' 障碍物记录</span><span>' +
-    reviewed.length +
+    (state.dataset ? reviewed.length : '—') +
     ' 已审观察</span></div></div><div id="gis-slot"></div><div class="gis-floatbar"><div class="segmented"><button data-action="map-view" data-value="map" aria-pressed="' +
     (state.mapView === 'map') +
     '">' +
@@ -486,7 +559,7 @@ export function command() {
     '<div class="floating-legend"><span><i class="dot cyan"></i>资源 / 审核路网</span><span><i class="dot amber"></i>候选</span><span><i class="dash"></i>封闭 / 未知</span></div>' +
     timeline() +
     '<div id="basemap-status">' +
-    (state.client ? 'WGS84 · 数据依赖现场录入' : '演练图层 · 不代表底图所在地发生灾情') +
+    'Esri 参考底图 · 非实时灾情 · 现场证据另行上传' +
     '</div></section>' +
     (state.showIntel ? intel() : '') +
     '</div>'
@@ -582,7 +655,12 @@ export function review() {
     return (
       '<div class="page-content"><h1>证据审核</h1>' +
       reviewWorkflow() +
-      empty('没有符合筛选条件的候选', '切换审核状态或降低置信度筛选阈值。') +
+      empty(
+        state.annotations.length ? '没有符合筛选条件的候选' : '尚无待审核证据',
+        state.annotations.length
+          ? '切换审核状态或降低置信度筛选阈值。'
+          : '先上传真实现场图片，再请求 AI 分析或录入有来源的观察。',
+      ) +
       '<button class="button" data-action="review-reset">清除筛选</button></div>'
     );
   return (

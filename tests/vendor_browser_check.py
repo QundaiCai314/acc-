@@ -11,7 +11,7 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:8080/#command')
     page.wait_for_load_state('networkidle')
     expect(page.locator('.maplibregl-canvas')).to_be_visible()
-    expect(page.locator('.geo-label')).not_to_have_count(0)
+    expect(page.locator('.geo-label')).to_have_count(0)
     page.evaluate('''async () => {
         const gl = await import('./vendor/maplibre-gl.mjs');
         const container = document.createElement('div');

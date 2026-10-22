@@ -84,6 +84,10 @@ export function compose(pages) {
     map = base.querySelector('.operating-map');
   // One persistent map. Existing forms become contextual tools above it.
   map.querySelector('.gis-floatbar')?.remove();
+  if (!state.dataset) {
+    map.querySelector('.filter-pills')?.remove();
+    map.querySelector('.floating-legend')?.remove();
+  }
   const layers = take(map, '.floating-layers'),
     timeline = take(map, '.floating-timeline');
   const photo = take(map, '.camera-pip'),
@@ -100,6 +104,8 @@ export function compose(pages) {
   if (state.showObjects)
     panels += windowFrame('objects', '对象与范围', take(base, '.entity-sidebar'), 'toggle-objects');
   if (state.showLayers) panels += windowFrame('layers', '图层', layers, 'toggle-layers');
+  if (state.showData)
+    panels += windowFrame('data', '数据来源与可用性', bench.dataStatus(), 'toggle-data');
   if (state.showTimeline) panels += windowFrame('time', '采集时间', timeline, 'toggle-time');
   if (photo) panels += windowFrame('photo', '定向影像', photo, 'close-pip');
   if (graph) panels += windowFrame('graph', '关系图谱', graph, 'close-graph');
@@ -142,13 +148,19 @@ export function compose(pages) {
       'tool',
       esc(heading),
       (group === 'media' || group === 'scene'
-        ? '<div class="workflow-toolbar">' + tabs +
+        ? '<div class="workflow-toolbar">' +
+          tabs +
           '<div class="workflow-context"><button class="text-button" data-action="datasets" aria-label="切换现场">' +
           esc(state.dataset?.snapshot.title || '选择现场') +
           ' ↓</button><button class="text-button" data-action="refresh"' +
-          (state.busy ? ' disabled' : '') + '>' + icon('refresh') +
+          (state.busy || !state.client ? ' disabled' : '') +
+          '>' +
+          icon('refresh') +
           '刷新</button></div></div>'
-        : tabs) + '<div class="tool-content">' + content.innerHTML + '</div>',
+        : tabs) +
+        '<div class="tool-content">' +
+        content.innerHTML +
+        '</div>',
       'close-tool',
       'tool-' + group + (state.expandedTool ? ' expanded' : ''),
     );
@@ -158,6 +170,7 @@ export function compose(pages) {
     [
       ['toggle-objects', 'map', '对象', state.showObjects],
       ['toggle-layers', 'layers', '图层', state.showLayers],
+      ['toggle-data', 'shield', '数据', state.showData],
       ['toggle-time', 'clock', '时间', state.showTimeline],
       ['toggle-graph', 'link', '关系', state.mapView === 'graph'],
       ['toggle-intel', 'chat', '问答', state.showIntel],
@@ -178,10 +191,10 @@ export function compose(pages) {
       .join('') +
     '</nav>';
   const question =
-    !state.showIntel && !group
+    !state.showIntel && !group && state.dataset
       ? '<form id="quick-question" class="map-question"><label for="quick-question-text">' +
         icon('chat') +
-        '<span class="sr-only">向现场证据提问</span></label><input id="quick-question-text" name="question" required minlength="2" maxlength="1000" placeholder="问现场：A 楼附近哪些入口有障碍物？"><button aria-label="打开证据问答">' +
+        '<span class="sr-only">向现场证据提问</span></label><input id="quick-question-text" name="question" required minlength="2" maxlength="1000" placeholder="输入现场对象、距离和需要查证的问题"><button aria-label="打开证据问答">' +
         icon('arrow') +
         '</button></form>'
       : '';
@@ -207,8 +220,12 @@ export function compose(pages) {
   return (
     '<div class="workspace-stage v2 ' +
     (group ? 'with-tool' : '') +
+    (!state.dataset ? ' empty-workspace' : '') +
     '">' +
     map.outerHTML +
+    (!group && !state.showIntel && !state.showObjects && !state.showData
+      ? bench.onboarding()
+      : '') +
     tools +
     question +
     panels +

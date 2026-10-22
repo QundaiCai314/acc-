@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
+from ui_fixture import load_ui_fixture
 
 
 def main():
@@ -23,6 +24,7 @@ def main():
             result = page.evaluate("async () => (await axe.run(document, {runOnly:{type:'tag', values:['wcag2a','wcag2aa','wcag21aa']}})).violations")
             results.append({'route': route, 'violations': result})
         page.goto(args.url + '/#command')
+        load_ui_fixture(page)  # Isolated keyboard exercise; never production default data.
         page.get_by_role('button', name='对象', exact=True).click()
         page.locator('.entity-row[data-id=building-a]').focus()
         page.keyboard.press('Enter')

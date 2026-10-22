@@ -4,7 +4,7 @@
 
 已实现小团队角色权限及工作空间隔离、控制点三维配准、道路最短路径和多条件/多跳空间推理。模型网关的图片与问答接口、AnySearch 匿名搜索已实际联调；尚未完成现场识别质量验证。原有约束规划保留兼容，见 [旧版规划文档](docs/legacy-planner.md)。
 
-前端采用地图主导的悬浮工作台，默认纸本测绘主题，可切换粗野档案和矿物岩彩主题，提供地图/关系图、原图审核、三维控制点核验、路网检索与证据问答。默认打开登录页，支持注册申请、管理员审批、改密与一次性重置码；也可选择独立的离线演练。启动、CORS、接口对应及渲染边界见 [前端说明](frontend/README.md)。
+前端采用地图主导的悬浮工作台，默认纸本测绘主题，可切换粗野档案和矿物岩彩主题，提供地图/关系图、原图审核、三维控制点核验、路网检索与证据问答。默认打开登录页，支持注册申请、管理员审批、改密与一次性重置码；工作台仅通过后端读取现场数据，未连接时显示空状态，不提供本地模拟结果。启动、CORS、接口对应及渲染边界见 [前端说明](frontend/README.md)。
 
 - [多人部署、账户管理与备份](docs/team-deployment.md)
 - [三维配准、路网与复杂关系接口](docs/spatial-extensions.md)
@@ -44,7 +44,7 @@ py -3.14 -m venv .venv
 
 | 步骤 | 接口 | 用途 |
 | --- | --- | --- |
-| 1 | POST /spatial/datasets | 建不可变地图快照，参考 examples/spatial_dataset.json |
+| 1 | POST /spatial/datasets | 建不可变地图快照，工作台提供真实来源表单与空白模板 |
 | 2 | POST /spatial/datasets/{dataset_id}/images | 上传图片及来源、拍摄时间、真实/演练属性 |
 | 3 | POST /spatial/images/{image_id}/analyze | 调用配置模型，保存运行记录及待审核候选 |
 | 4 | GET /spatial/datasets/{dataset_id}/annotations | 读取原始候选、审核修正及状态 |

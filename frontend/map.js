@@ -59,23 +59,6 @@ export function mapSvg() {
     network = activeArtifact('road_network');
   let body =
     '<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#263137" stroke-width=".6"/></pattern><marker id="direction" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="m0 0 6 3-6 3" fill="#91b3ae"/></marker></defs><rect width="760" height="600" fill="#151e22"/><rect width="760" height="600" fill="url(#grid)"/>';
-  if (!state.client) {
-    for (let x = 35; x < 740; x += 100)
-      for (let y = 28; y < 590; y += 110) {
-        body +=
-          '<rect x="' +
-          x +
-          '" y="' +
-          y +
-          '" width="72" height="78" rx="2" fill="#1c272c" stroke="#29363b"/><path d="M' +
-          (x + 10) +
-          ' ' +
-          (y + 10) +
-          'h52v58h-52Z" fill="none" stroke="#233238"/>';
-      }
-    body +=
-      '<path d="M0 420H760M455 0V600" stroke="#334047" stroke-width="22"/><path d="M0 420H760M455 0V600" stroke="#59635d" stroke-width="1" stroke-dasharray="12 10"/>';
-  }
   if (state.layers.buffer && center)
     body +=
       '<circle cx="' +

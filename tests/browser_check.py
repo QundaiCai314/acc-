@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+from ui_fixture import fixture
 
 
 def main():
@@ -30,86 +31,25 @@ def main():
         expect(page.locator('#register-account-form')).to_be_visible()
         expect(page.get_by_role('button', name='提交注册申请')).to_be_visible()
         page.get_by_role('button', name='登录').click()
-        page.get_by_role('link', name='进入离线演练').click()
-        expect(page.get_by_role('heading', name='现场态势', exact=True)).to_be_visible()
-        # Full-page capture temporarily resizes WebGL canvases; capture the actual viewport.
-        page.screenshot(path=str(output / 'command-desktop.png'))
-        demo = page.evaluate("async () => (await import('./demo.js')).makeDemo()")
-
+        page.get_by_role('link', name='查看工作台').click()
+        expect(page.locator('.workspace-onboarding')).to_be_visible()
+        assert page.evaluate("async () => {const {state,canWrite,canReview}=await import('./state.js');return !state.dataset && !state.images.length && !state.annotations.length && !state.artifacts.length && !canWrite() && !canReview()}")
+        assert not any('/demo' in r['name'] for r in page.evaluate('performance.getEntriesByType("resource").map(r=>({name:r.name}))'))
+        page.screenshot(path=str(output / 'real-first-empty-desktop.png'))
+        demo = fixture(page)  # Test-only generated data; never written to a user backend.
         for width in (320, 768, 1024, 1440):
             page.set_viewport_size({'width': width, 'height': 1000})
             for route in ('command', 'import', 'analysis', 'review', 'registration', 'plans', 'reason', 'field'):
                 page.goto(args.url + '/#' + route)
                 page.wait_for_load_state('networkidle')
                 assert page.locator('h1').count() == 1, route
-                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, route, 'horizontal overflow')
-        page.goto(args.url + '/#command')
-        page.get_by_role('button', name='图层', exact=True).click()
-        page.locator('[data-layer=objects]').uncheck()
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), (width, route)
+            page.goto(args.url + '/#command')
+            page.screenshot(path=str(output / f'real-first-empty-{width}.png'))
         expect(page.locator('.geo-label')).to_have_count(0)
-        page.locator('[data-layer=objects]').check()
-        expect(page.locator('.geo-label')).not_to_have_count(0)
-        page.get_by_role('button', name='关闭图层', exact=True).click()
-        page.get_by_role('button', name='关系', exact=True).click()
-        expect(page.locator('.relation-inset .relation-active')).to_have_count(2)
-        page.get_by_role('button', name='关闭关系图谱', exact=True).click()
-        page.get_by_role('button', name='播放时间窗口', exact=True).click()
-        page.wait_for_function("document.querySelector('[data-control=endAge]').value < 48")
-        page.get_by_role('button', name='暂停时间播放', exact=True).click()
-        page.get_by_role('button', name='回到现在', exact=True).click()
-        if not page.locator('[data-window=objects]').count():
-            page.get_by_role('button', name='对象', exact=True).click()
-        page.get_by_role('button', name='检索已审核障碍物').click()
-        expect(page.locator('.answer')).to_contain_text('已审核障碍物记录')
-        page.locator('input[data-control=windowStart]').fill('1')
-        page.locator('input[data-control=windowStart]').dispatch_event('change')
-        assert page.locator('.answer').count() == 0, 'Filter changes must clear stale answers'
-        page.get_by_role('button', name='检索已审核障碍物').click()
-        expect(page.locator('.answer')).to_contain_text('更早记录')
-
-        page.goto(args.url + '/#review')
-        page.locator('[data-action=review-select][data-id=ann-south]').first.click()
-        page.locator('[name=note]').fill('离线交互核验')
-        page.get_by_role('button', name='框选', exact=True).click()
-        box = page.locator('.annotation-canvas .evidence-photo').bounding_box()
-        page.mouse.move(box['x'] + box['width'] * .2, box['y'] + box['height'] * .3)
-        page.mouse.down()
-        page.mouse.move(box['x'] + box['width'] * .7, box['y'] + box['height'] * .8, steps=8)
-        page.mouse.up()
-        expect(page.locator('[name=x_min]')).to_have_value('0.200')
-        page.get_by_role('button', name='原始对照', exact=True).click()
-        expect(page.locator('[name=note]')).to_have_value('离线交互核验')
-        expect(page.locator('[name=x_min]')).to_have_value('0.200')
-        page.screenshot(path=str(output / 'review-desktop.png'), full_page=True)
-        page.get_by_role('button', name='批准 / 修正').click()
-        expect(page.locator('.review-editor .panel-heading')).to_contain_text('已审核')
-        page.locator('[name=note]').fill('验证撤回')
-        page.get_by_role('button', name='撤回批准', exact=True).click()
-        expect(page.locator('.review-editor .panel-heading')).to_contain_text('已撤回')
-        page.goto(args.url + '/#plans')
-        page.locator('[name=end_entity_id]').select_option('east')
-        page.get_by_role('button', name='计算路径').click()
-        expect(page.locator('.route-result')).to_contain_text('350')
-        page.locator('[name=mode]').select_option('vehicle')
-        page.get_by_role('button', name='计算路径').click()
-        expect(page.locator('.route-result')).to_contain_text('不可达')
-        page.goto(args.url + '/#registration')
-        page.get_by_role('button', name='CHECK-01', exact=True).click()
-        expect(page.locator('tr.selected')).to_contain_text('CHECK-01')
-        expect(page.locator('.three-renderer canvas')).to_be_visible()
-        expect(page.locator('.control-plan svg')).to_be_visible()
-        page.screenshot(path=str(output / 'registration-desktop.png'), full_page=True)
-        page.goto(args.url + '/#analysis')
-        page.locator('[data-control=galleryConfidence]').fill('0.9')
-        page.locator('[data-control=galleryConfidence]').dispatch_event('change')
-        expect(page.locator('.image-card')).to_have_count(1)
-        page.locator('[data-control=galleryConfidence]').fill('0')
-        page.locator('[data-control=galleryConfidence]').dispatch_event('change')
-        page.screenshot(path=str(output / 'analysis-desktop.png'), full_page=True)
-        page.goto(args.url + '/#command')
-        page.set_viewport_size({'width': 320, 'height': 900})
-        page.screenshot(path=str(output / 'command-mobile.png'), full_page=True)
-        page.set_viewport_size({'width': 1440, 'height': 1000})
+        page.get_by_role('button', name='对象', exact=True).click()
+        expect(page.get_by_role('button', name='检索已审核障碍物')).to_be_disabled()
+        page.get_by_role('button', name='对象', exact=True).click()
 
         def connect(token):
             page.get_by_role('button', name='连接设置').click()
@@ -139,7 +79,9 @@ def main():
         expect(page.locator('.contextbar')).to_contain_text('尚未选择现场')
         page.goto(args.url + '/#import')
         dataset_file = output / 'map.json'
+        demo['dataset']['snapshot']['coordinate_basis'] = 'measured'  # Contract fixture only, not a real survey.
         dataset_file.write_text(json.dumps(demo['dataset']['snapshot'], ensure_ascii=False), encoding='utf-8')
+        page.locator('.intake-json > summary').click()
         page.locator('#dataset-form input[type=file]').set_input_files(dataset_file)
         page.get_by_role('button', name='建立新现场').click()
         expect(page.locator('.contextbar')).to_contain_text('北城街区', timeout=15000)
@@ -149,10 +91,11 @@ def main():
             x.fillStyle='#203430';x.fillRect(200,100,200,250);return c.toDataURL().split(',')[1];}""")
         import base64
         page.locator('#image-form input[type=file]').set_input_files({'name': 'synthetic.png', 'mimeType': 'image/png', 'buffer': base64.b64decode(png)})
+        page.locator('#image-form [name=captured_at]').fill(__import__('datetime').datetime.now().strftime('%Y-%m-%dT%H:%M'))
         page.locator('#image-form [name=source]').fill('浏览器合成图，非现场照片')
         page.locator('.camera-fields > summary').click()
         page.locator('[name=camera_enabled]').check()
-        for name, value in [('camera_lat','31.23'),('camera_lon','121.47'),('camera_heading','315'),('camera_fov','65'),('camera_alt','1.8'),('camera_source','合成测试位姿')]:
+        for name, value in [('camera_lat','31.23'),('camera_lon','121.47'),('camera_heading','315'),('camera_fov','65'),('camera_alt','1.8'),('camera_pitch','0'),('camera_vfov','45'),('camera_source','合成测试位姿')]:
             page.locator('[name='+name+']').fill(value)
         page.get_by_role('button', name='上传至当前现场').click()
         expect(page.locator('#notice')).to_have_text('操作完成。', timeout=15000)
@@ -240,10 +183,15 @@ def main():
 
         # Team permissions and workspace isolation are checked against the real middleware.
         connect('frontend-test-viewer')
-        page.goto(args.url + '/#review')
+        page.locator('.primary-modes a[href="#command"]').click()
+        page.get_by_role('button', name='切换现场 ↓').click()
+        page.get_by_role('button', name='打开现场', exact=True).click()
+        expect(page.locator('#dialog')).not_to_be_visible()
+        page.locator('.primary-modes a[href="#analysis"]').click()
+        page.locator('.workflow-tabs a[href="#review"]').click()
         expect(page.get_by_role('button', name='撤回批准', exact=True)).to_be_disabled()
         page.goto(args.url + '/#import')
-        expect(page.get_by_role('button', name='建立新现场')).to_be_disabled()
+        expect(page.get_by_role('button', name='建立真实现场')).to_be_disabled()
         connect('frontend-test-isolated')
         expect(page.locator('.contextbar')).to_contain_text('尚未选择现场')
         assert page.evaluate('localStorage.length === 0 && sessionStorage.length === 0'), 'No credentials in storage'
@@ -255,7 +203,7 @@ def main():
         expect(page.get_by_role('link', name='返回已连接的工作台')).to_be_visible()
         expect(page.locator('#login-token')).to_have_value('')
         page.reload()
-        expect(page.get_by_role('link', name='进入离线演练')).to_be_visible()
+        expect(page.get_by_role('link', name='查看工作台')).to_be_visible()
         expect(page.locator('#login-token')).to_have_value('')
         assert page.evaluate("async () => (await import('./state.js')).state.client === null")
         # Password sessions use the same actual backend and must revoke on logout.
@@ -281,18 +229,18 @@ def main():
         page.get_by_role('button', name='退出登录', exact=True).click()
         expect(page.locator('#login-password')).to_be_visible()
         assert page.request.get(args.api + '/auth/me', headers={'Authorization': 'Bearer '+token}).status == 401
-        assert page.evaluate("async () => {const s=(await import('./state.js')).state;return !s.client && !s.answer && !s.datasets.length && s.identity.workspace === '离线演练'}")
+        assert page.evaluate("async () => {const s=(await import('./state.js')).state;return !s.client && !s.answer && !s.datasets.length && !s.dataset && !s.images.length && !s.annotations.length && !s.artifacts.length && s.identity.role === ''}")
         password_login()
         expect(page.locator('.topbar')).to_contain_text('后端已连接', timeout=15000)
         token = page.evaluate("async () => (await import('./state.js')).state.client.token")
         assert page.request.post(args.api+'/auth/logout', headers={'Authorization':'Bearer '+token}, data={}).ok
         page.get_by_role('button', name='刷新', exact=True).click()
         expect(page.locator('#login-password')).to_be_visible(timeout=15000)
-        assert page.evaluate("async () => {const s=(await import('./state.js')).state;return !s.client && !s.answer && !s.datasets.length && s.identity.workspace === '离线演练'}")
+        assert page.evaluate("async () => {const s=(await import('./state.js')).state;return !s.client && !s.answer && !s.datasets.length && !s.dataset && !s.images.length && !s.annotations.length && !s.artifacts.length && s.identity.role === ''}")
         assert page.evaluate('!localStorage.length && !sessionStorage.length')
         assert not errors, errors
         browser.close()
-    print('PASS: login rejection/success/refresh; 32 responsive page checks; demo queries/review/route/3D; real team API upload, analysis fixture, review, query, artifacts, relation reasoning, permissions, isolation, escaping.')
+    print('PASS: login rejection/success/refresh; 32 responsive page checks; empty-first/no local success; real team API upload, analysis fixture, review, query, artifacts, relation reasoning, permissions, isolation, escaping.')
     print('Screenshots: data/frontend-check/')
 
 

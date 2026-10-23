@@ -10,6 +10,7 @@
 - [三维配准、路网与复杂关系接口](docs/spatial-extensions.md)
 - [外部服务协议、实测结果与星云边界](docs/integrations.md)
 - [2026-10-22 审核报告](docs/audit-2026-10-22.md)
+- [真实海地地震照片验证：来源、模型输出与限制](docs/real-scene-validation-2026-10-23.md)
 - [交付包快速启动](START-HERE.md)
 
 ## 运行
@@ -69,7 +70,9 @@ py -3.14 -m venv .venv
 }
 ```
 
-图片字段：name、captured_at（带时区）、source、evidence_basis（exercise/field_image）、mime_type（image/png 或 image/jpeg）、content_base64。单张解码后至多 5 MB；仅检查 Base64、格式签名和大小，不做完整图片解码、EXIF 读取或自动定位。
+图片字段：name、source、evidence_basis（exercise/field_image）、mime_type（image/png 或 image/jpeg）、content_base64，以及二选一的 captured_at（带时区的精确时刻）或 captured_on（YYYY-MM-DD，仅知道日期、时刻及原始时区未知；年份 2–9998）。不能同时填写，也不能都缺失。单张解码后至多 5 MB；仅检查 Base64、格式签名和大小，不做完整图片解码、EXIF 读取或自动定位。
+
+仅日期的图片保留 captured_at=null，不补造午夜。保守可能时间范围为日期 D 的 UTC 午夜前 14 小时至次日 UTC 午夜后 12 小时（上界不含）；只有整个范围落在查询窗口内才检索，部分重叠不纳入。空间、路网与关系证据过滤采用相同规则。引用返回 captured_on，界面明确标注“仅日期，时区未知”；时刻直方图不将其伪装为某个时间点。
 
 annotation 字段：entity_id（候选允许 null）、observation、description、bbox、confidence。bbox 为归一化 x_min、y_min、x_max、y_max，原图左上角为原点；observation 为 obstacle_visible、no_obstacle_visible 或 unknown。
 

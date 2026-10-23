@@ -92,6 +92,31 @@ class SpatialTests(unittest.TestCase):
             self.assertEqual(records[0]['status'], 'withdrawn')
             self.assertEqual(records[0]['review']['approved_annotation'], ANNOTATION)
 
+    def test_date_only_capture_is_not_an_invented_instant(self):
+        from app.geometry import evidence_records
+        payload = {k: v for k, v in self.image_payload.items() if k != 'captured_at'}
+        for changes in ({}, {'captured_on': '0001-01-01'}, {'captured_on': '9999-12-31'},
+                        {'captured_on': '2026-10-17', 'captured_at': self.image_payload['captured_at']}):
+            self.assertEqual(self.client.post(f'/spatial/datasets/{self.dataset_id}/images',
+                                             json=payload | changes).status_code, 422)
+        image = self.upload(payload | {'captured_on': '2026-10-17'})
+        annotation = self.propose(image_id=image)
+        self.assertEqual(self.ask()['citations'], [])
+        self.assertEqual(self.review(annotation).status_code, 201)
+        # Date+unknown timezone spans Oct 16 10:00Z through Oct 18 12:00Z.
+        result = self.ask(as_of='2026-10-18T12:00:00Z', max_age_hours=50)
+        self.assertEqual(result['citations'][0]['captured_on'], '2026-10-17')
+        self.assertIsNone(result['citations'][0]['captured_at'])
+        self.assertIn('仅日期', result['answer'])
+        self.assertEqual(self.ask(as_of='2026-10-18T11:59:59Z', max_age_hours=50)['citations'], [])
+        self.assertEqual(self.ask(as_of='2026-10-18T12:00:00Z', max_age_hours=49)['citations'], [])
+        self.assertEqual(self.ask(as_of='2026-10-16T09:00:00Z')['older_evidence_count'], 0)
+        self.assertEqual(self.ask(as_of='2026-10-20T12:00:00Z')['older_evidence_count'], 1)
+        store = self.client.app.state.store
+        end = datetime.fromisoformat('2026-10-18T12:00:00Z')
+        self.assertIn(annotation, evidence_records(store, self.dataset_id, end, 50))
+        self.assertNotIn(annotation, evidence_records(store, self.dataset_id, end, 49))
+
     def test_rejected_pending_far_unknown_and_time_filters(self):
         rejected = self.propose()
         self.assertEqual(self.review(rejected, 'reject').status_code, 201)

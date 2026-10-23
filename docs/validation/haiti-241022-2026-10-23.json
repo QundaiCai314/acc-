@@ -1,0 +1,262 @@
+{
+  "source": {
+    "page": "https://www.dvidshub.net/image/241022/haiti-relief-efforts",
+    "download": "https://d1ldvf68ux039x.cloudfront.net/thumbs/photos/1001/241022/2000w_q95.jpg",
+    "sha256": "e34dafb44aa6dc15fc9440006d50b83872c2c80f4c583d33ad4268261a8c822d",
+    "bytes": 1056544,
+    "captured_on": "2010-01-17",
+    "location": "Port-au-Prince, Haiti; exact location unknown",
+    "credit": "U.S. Navy photo by Petty Officer 2nd Class Justin Stumberg; VIRIN 100117-N-6070S-001",
+    "rights": "Item marked PUBLIC DOMAIN; https://www.dvidshub.net/about/copyright; no endorsement implied",
+    "caption": "Members of the Los Angeles County Fire Department Search and Rescue Team clear debris at a collapsed building in downtown Port-au-Prince.",
+    "validation_started_at": "2026-10-23T04:52:31.286687+00:00"
+  },
+  "dataset": {
+    "http_status": 201,
+    "body": {
+      "snapshot": {
+        "title": "真实历史影像核验｜海地地震搜救 · DVIDS 241022",
+        "exercise": true,
+        "coordinate_basis": "measured",
+        "coordinate_reference_system": "WGS84",
+        "map_source": "https://www.dvidshub.net/image/241022/haiti-relief-efforts；真实历史影像来源，不含测绘坐标、路网、控制点或精确拍摄时刻。measured 字段仅标记非演练来源，未定位对象不表示已测量。",
+        "curator": "公开来源核验 / AI assistant",
+        "entities": [
+          {
+            "id": "dvids-241022-building",
+            "name": "DVIDS 241022 所示坍塌建筑（未定位）",
+            "kind": "building",
+            "coordinates": null
+          }
+        ]
+      },
+      "workspace_id": "default",
+      "created_by": "local",
+      "id": "83746245-0a40-44b3-a005-9df8e604dce8",
+      "created_at": "2026-10-23T04:52:31.396641+00:00"
+    }
+  },
+  "image": {
+    "http_status": 201,
+    "body": {
+      "name": "DVIDS-241022-Haiti-2010-01-17.jpg",
+      "captured_at": null,
+      "captured_on": "2010-01-17",
+      "source": "https://www.dvidshub.net/image/241022/haiti-relief-efforts | U.S. Navy photo by Petty Officer 2nd Class Justin Stumberg; VIRIN 100117-N-6070S-001 | PUBLIC DOMAIN；来源仅公布日期，时刻、时区及精确位置未知；历史影像不代表当前现场。",
+      "evidence_basis": "field_image",
+      "mime_type": "image/jpeg",
+      "camera_pose": null,
+      "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+      "sha256": "e34dafb44aa6dc15fc9440006d50b83872c2c80f4c583d33ad4268261a8c822d",
+      "workspace_id": "default",
+      "created_by": "local",
+      "id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+      "created_at": "2026-10-23T04:52:31.485253+00:00"
+    }
+  },
+  "content_hash_matches": true,
+  "analysis": {
+    "http_status": 201,
+    "body": {
+      "run_id": "2c00b781-5121-4751-a1ea-9cca6374e196",
+      "status": "pending_review",
+      "annotations": [
+        {
+          "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+          "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+          "origin": "ai",
+          "run_id": "2c00b781-5121-4751-a1ea-9cca6374e196",
+          "annotation": {
+            "entity_id": "dvids-241022-building",
+            "observation": "obstacle_visible",
+            "description": "图中显示大面积倒塌的建筑残骸，现场有多名救援人员进行搜救，建筑物完全毁坏，地面布满瓦砾和建筑材料。",
+            "bbox": {
+              "x_min": 0.0,
+              "y_min": 0.3,
+              "x_max": 0.9,
+              "y_max": 0.85
+            },
+            "confidence": 0.95
+          },
+          "workspace_id": "default",
+          "created_by": "local",
+          "id": "ee1b5691-2f12-4a67-a454-76362b26f47e",
+          "created_at": "2026-10-23T04:52:39.844999+00:00"
+        }
+      ]
+    }
+  },
+  "vision_audit": {
+    "http_status": 200,
+    "body": {
+      "model": "gpt-4.1-mini",
+      "provider_host": "api.openai-next.com",
+      "prompt_version": "spatial-v1",
+      "raw_content": "{\"annotations\":[{\"entity_id\":\"dvids-241022-building\",\"observation\":\"obstacle_visible\",\"description\":\"图中显示大面积倒塌的建筑残骸，现场有多名救援人员进行搜救，建筑物完全毁坏，地面布满瓦砾和建筑材料。\",\"bbox\":{\"x_min\":0.0,\"y_min\":0.3,\"x_max\":0.9,\"y_max\":0.85},\"confidence\":0.95}]}",
+      "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+      "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+      "workspace_id": "default",
+      "created_by": "local",
+      "id": "2c00b781-5121-4751-a1ea-9cca6374e196",
+      "created_at": "2026-10-23T04:52:39.827450+00:00"
+    }
+  },
+  "annotations": {
+    "http_status": 200,
+    "body": {
+      "annotations": [
+        {
+          "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+          "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+          "origin": "ai",
+          "run_id": "2c00b781-5121-4751-a1ea-9cca6374e196",
+          "annotation": {
+            "entity_id": "dvids-241022-building",
+            "observation": "obstacle_visible",
+            "description": "图中显示大面积倒塌的建筑残骸，现场有多名救援人员进行搜救，建筑物完全毁坏，地面布满瓦砾和建筑材料。",
+            "bbox": {
+              "x_min": 0.0,
+              "y_min": 0.3,
+              "x_max": 0.9,
+              "y_max": 0.85
+            },
+            "confidence": 0.95
+          },
+          "workspace_id": "default",
+          "created_by": "local",
+          "id": "ee1b5691-2f12-4a67-a454-76362b26f47e",
+          "created_at": "2026-10-23T04:52:39.844999+00:00",
+          "review": null,
+          "status": "pending_review"
+        },
+        {
+          "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+          "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+          "origin": "ai",
+          "run_id": "73b18a84-c800-4842-bd15-fbe09d5ced8c",
+          "annotation": {
+            "entity_id": null,
+            "observation": "obstacle_visible",
+            "description": "一处建筑物坍塌，现场有大量混凝土碎块、钢筋和瓦砾散落，救援人员正在瓦砾中进行搜救作业。",
+            "bbox": {
+              "x_min": 0.0,
+              "y_min": 0.33,
+              "x_max": 0.65,
+              "y_max": 0.92
+            },
+            "confidence": 0.95
+          },
+          "workspace_id": "default",
+          "created_by": "local",
+          "id": "16879aff-1bd6-45dc-b807-804ec24b5e91",
+          "created_at": "2026-10-23T04:55:41.760496+00:00",
+          "review": null,
+          "status": "pending_review"
+        }
+      ],
+      "next_offset": null
+    }
+  },
+  "unlocated_query": {
+    "http_status": 422,
+    "body": {
+      "detail": "Center has no coordinates; cannot calculate distance"
+    }
+  },
+  "natural_question": {
+    "http_status": 200,
+    "body": {
+      "status": "clarification_needed",
+      "answer": "“DVIDS 241022 所示坍塌建筑（未定位）”在地图上没有坐标，无法计算距离，请改用有坐标的地点作为中心。",
+      "run_id": "f2a8faea-18f7-4079-b96c-73354ddb233d",
+      "interpreted_query": {
+        "center_entity_id": "dvids-241022-building",
+        "radius_m": 100.0,
+        "kind": "building",
+        "observation": "obstacle_visible",
+        "max_age_hours": null
+      },
+      "evidence": null,
+      "clarification": "“DVIDS 241022 所示坍塌建筑（未定位）”在地图上没有坐标，无法计算距离，请改用有坐标的地点作为中心。"
+    }
+  },
+  "question_audit": {
+    "http_status": 200,
+    "body": {
+      "model": "gpt-4.1",
+      "provider_host": "api.openai-next.com",
+      "prompt_version": "query-v1",
+      "raw_content": "{\n  \"center_entity_id\": \"dvids-241022-building\",\n  \"radius_m\": 100,\n  \"kind\": \"building\",\n  \"observation\": \"obstacle_visible\",\n  \"max_age_hours\": null\n}",
+      "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+      "question": "DVIDS 241022 所示坍塌建筑周围100米内有哪些建筑可见障碍物？",
+      "interpreted_query": {
+        "center_entity_id": "dvids-241022-building",
+        "radius_m": 100.0,
+        "kind": "building",
+        "observation": "obstacle_visible",
+        "max_age_hours": null
+      },
+      "workspace_id": "default",
+      "created_by": "local",
+      "id": "f2a8faea-18f7-4079-b96c-73354ddb233d",
+      "created_at": "2026-10-23T04:52:50.204825+00:00"
+    }
+  },
+  "human_review": "Pending: assistant visual assessment is not human approval; no approval submitted.",
+  "analysis_v2": {
+    "http_status": 201,
+    "body": {
+      "run_id": "73b18a84-c800-4842-bd15-fbe09d5ced8c",
+      "status": "pending_review",
+      "annotations": [
+        {
+          "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+          "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+          "origin": "ai",
+          "run_id": "73b18a84-c800-4842-bd15-fbe09d5ced8c",
+          "annotation": {
+            "entity_id": null,
+            "observation": "obstacle_visible",
+            "description": "一处建筑物坍塌，现场有大量混凝土碎块、钢筋和瓦砾散落，救援人员正在瓦砾中进行搜救作业。",
+            "bbox": {
+              "x_min": 0.0,
+              "y_min": 0.33,
+              "x_max": 0.65,
+              "y_max": 0.92
+            },
+            "confidence": 0.95
+          },
+          "workspace_id": "default",
+          "created_by": "local",
+          "id": "16879aff-1bd6-45dc-b807-804ec24b5e91",
+          "created_at": "2026-10-23T04:55:41.760496+00:00"
+        }
+      ]
+    }
+  },
+  "vision_audit_v2": {
+    "model": "gpt-4.1-mini",
+    "provider_host": "api.openai-next.com",
+    "prompt_version": "spatial-v2",
+    "raw_content": "{\"annotations\":[{\"observation\":\"obstacle_visible\",\"description\":\"一处建筑物坍塌，现场有大量混凝土碎块、钢筋和瓦砾散落，救援人员正在瓦砾中进行搜救作业。\",\"bbox\":{\"x_min\":0.0,\"y_min\":0.33,\"x_max\":0.65,\"y_max\":0.92},\"confidence\":0.95}]}",
+    "image_id": "bd5a4334-3107-49f9-99f9-84dabebf346e",
+    "dataset_id": "83746245-0a40-44b3-a005-9df8e604dce8",
+    "workspace_id": "default",
+    "created_by": "local",
+    "id": "73b18a84-c800-4842-bd15-fbe09d5ced8c",
+    "created_at": "2026-10-23T04:55:41.748444+00:00"
+  },
+  "idempotent_replay": {
+    "http_status": 201,
+    "same_result": true,
+    "annotation_count_before": 2,
+    "annotation_count_after": 2
+  },
+  "assistant_visual_assessment": {
+    "scope": "Image and source-caption comparison only; not human approval or field verification.",
+    "v1": "Visible rubble agrees with image. Claim of entire building destruction is unsupported. Entity suggestion lacks an independent visible identity marker. Keep pending for correction.",
+    "v2": "Rubble and rescue-worker description broadly agrees with image and source caption; no confirmed entrance or street closure. Entity remains null. Action and material details still require human checking.",
+    "confidence": "0.95 is self-reported, not measured accuracy or calibrated probability.",
+    "spatial_limits": "No GPS, road network or 3D control points supplied by this source. No positive distance, route or registration validation claimed."
+  }
+}

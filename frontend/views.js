@@ -15,6 +15,7 @@ import {
   empty,
   fmt,
   time,
+  captureTime,
   options,
   kinds,
   observations,
@@ -192,7 +193,7 @@ function citationCard(c, i) {
     '<p>' +
     esc(c.annotation.description) +
     '</p><div class="meta">' +
-    time(c.captured_at) +
+    captureTime(c) +
     ' · ' +
     esc(c.reviewer) +
     '<br>' +
@@ -302,7 +303,7 @@ export function uploadForm() {
     icon('upload') +
     '<strong>选择现场图片</strong><span>PNG / JPEG · 单张不超过 5 MB</span><input name="file" type="file" accept="image/png,image/jpeg" required></label><label>采集时间<input name="captured_at" type="datetime-local" value="' +
     '' +
-    '" required></label><label>素材性质<select name="evidence_basis"><option value="field_image">真实现场图片</option></select></label><label class="wide">来源说明<input name="source" required maxlength="2000" placeholder="采集人员、设备或公开来源 URL；注明时间精度"></label><p class="meta wide">填写原始采集时间，不默认使用上传时间。未知位置或朝向请留空；底图影像不是灾后现场证据。</p>' +
+    '"></label><label>或：仅知道拍摄日期<input name="captured_on" type="date" min="0002-01-01" max="9998-12-31"></label><label>素材性质<select name="evidence_basis"><option value="field_image">真实现场图片</option></select></label><label class="wide">来源说明<input name="source" required maxlength="2000" placeholder="采集人员、设备或公开来源 URL；注明时间精度"></label><p class="meta wide">采集时间与仅日期二选一，不默认使用上传时间。仅日期表示时刻和时区未知，按完整可能时间范围保守检索。未知位置或朝向请留空；底图影像不是灾后现场证据。</p>' +
     cameraFields() +
     '<button class="button primary wide" ' +
     disabled(canWrite() && state.dataset && !state.busy) +

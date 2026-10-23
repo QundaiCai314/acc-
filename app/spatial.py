@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from . import vision
+from .evidence_time import capture_bounds, capture_label
 from .access import attributed, team_mode
 from .spatial_models import (
     Annotation, Dataset, ImageInput, ImportedProposal, NaturalAnswer, NaturalQuestion,
@@ -251,18 +252,19 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
         if distance > payload.radius_m:
             continue
         image = get(store, 'spatial_image', record['image_id'], metadata=True)
-        captured_at = datetime.fromisoformat(image['captured_at'])
-        if captured_at < cutoff:
-            older_matches.append((entity.name, captured_at, image['evidence_basis']))
+        earliest, latest = capture_bounds(image)
+        if latest < cutoff:
+            older_matches.append((entity.name, latest, image['evidence_basis'], capture_label(image)))
             continue
-        if captured_at > payload.as_of:
+        if earliest < cutoff or latest > payload.as_of:
             continue
         citations.append({
             'annotation_id': record['id'], 'image_id': image['id'],
             'image_url': f"/spatial/images/{image['id']}/content",
             'entity_id': entity.id, 'entity_name': entity.name,
             'coordinates': entity.coordinates, 'distance_m': round(distance, 2),
-            'captured_at': captured_at, 'source': image['source'], 'evidence_basis': image['evidence_basis'],
+            'captured_at': image.get('captured_at'), 'captured_on': image.get('captured_on'),
+            'source': image['source'], 'evidence_basis': image['evidence_basis'],
             'origin': record['origin'], 'annotation': annotation,
             'reviewer': review['reviewer'], 'review_note': review['note'], 'reviewed_at': review['created_at'],
             'camera_pose': image.get('camera_pose'),
@@ -270,16 +272,16 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
     citations.sort(key=lambda c: (c['distance_m'], c['entity_id'], c['annotation_id']))
     labels = {'obstacle_visible': '可见障碍物', 'no_obstacle_visible': '画面中未见明显障碍物', 'unknown': '情况不明确'}
     if citations:
-        entries = [f"{c['entity_name']}（约 {c['distance_m']} 米，图片时间 {c['captured_at'].isoformat()}）[{i}]"
+        entries = [f"{c['entity_name']}（约 {c['distance_m']} 米，图片时间 {capture_label(c)}）[{i}]"
                    for i, c in enumerate(citations, 1)]
         answer = f'在指定时间窗口和 {payload.radius_m:g} 米范围内，找到已审核的“{labels[payload.observation]}”记录：' + '；'.join(entries)
     else:
         answer = '未检索到满足空间、时间和审核条件的记录，无法据此判断现场有无障碍物或是否可通行。'
         if older_matches:
-            newest_name, newest_at, _ = max(older_matches, key=lambda item: item[1])
+            newest_name, _, _, newest_label = max(older_matches, key=lambda item: item[1])
             answer += (f'本次查询截止 {payload.as_of.isoformat()}，回溯 {payload.max_age_hours} 小时；'
                        f'同范围、同类别且符合观察条件的已审核记录中，有 {len(older_matches)} 条早于本次时间窗口，'
-                       f'其中最新一条为“{newest_name}”于 {newest_at.isoformat()} 采集；'
+                       f'其中采集时间上界最晚的一条为“{newest_name}”，来源时间 {newest_label}；'
                        '可扩大查询时间范围查看，但这些记录不代表当前状态。')
     if dataset.coordinate_basis == 'exercise':
         answer = '【演练坐标】' + answer
@@ -291,7 +293,8 @@ def query(dataset_id: UUID, payload: SpatialQuery, request: Request):
         'answer': answer, 'coordinate_basis': dataset.coordinate_basis, 'query': payload, 'citations': citations,
         'older_evidence_count': len(older_matches),
         'missing_coordinates': [e.id for e in dataset.entities if e.kind == payload.kind and e.coordinates is None],
-        'limitations': ['距离是 WGS84 点位间球面距离，不是步行距离或建筑边界距离',
+        'limitations': ['仅日期且时区未知的图片按 UTC+14 至 UTC-12 的可能时间范围保守检索，整个范围在查询窗口内才纳入；部分重叠不纳入',
+                        '距离是 WGS84 点位间球面距离，不是步行距离或建筑边界距离',
                         '结果表示图片采集时的观察记录，不表示当前通行安全；可能存在其他相反记录',
                         '只检索当前仍有效的人工审核结果；as_of 限制图片时间，不是历史审核状态回放',
                         '置信度是模型或录入者自报，未经过概率校准；人工审核也不保证现场事实无误'],

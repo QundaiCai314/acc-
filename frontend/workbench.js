@@ -15,6 +15,7 @@ import {
   badge,
   fmt,
   time,
+  captureTime,
   options,
   empty,
   observations,
@@ -83,7 +84,7 @@ export function analysis() {
           '</span></div><div class="image-card-body"><h3>' +
           esc(img.name) +
           '</h3><p>' +
-          time(img.captured_at) +
+          captureTime(img) +
           ' · ' +
           esc(img.source) +
           '</p><div class="pills">' +
@@ -283,6 +284,7 @@ function layers() {
 function timeline() {
   const bins = Array(36).fill(0);
   for (const image of state.images) {
+    if (!image.captured_at) continue; // Date-only sources have no instant histogram bin.
     const age = (state.timelineBase - new Date(image.captured_at)) / 3600000;
     if (age >= 0 && age < 72) bins[Math.min(35, 35 - Math.floor(age / 2))]++;
   }
@@ -332,7 +334,7 @@ function timeline() {
     localTime(state.asOf) +
     '"></label><label>回溯小时<input type="range" min="1" max="72" aria-label="回溯小时数" value="' +
     state.hours +
-    '" data-control="hours"></label></details></section>'
+    '" data-control="hours"></label><p class="meta">仅日期的图片不计入时刻分布；其全部可能拍摄时间在窗口内才纳入筛选。</p></details></section>'
   );
 }
 function pip() {
@@ -349,7 +351,7 @@ function pip() {
     '</button></div>' +
     thumb(image) +
     '<div class="pip-meta"><span>' +
-    time(image.captured_at) +
+    captureTime(image) +
     '</span><span>' +
     (image.camera_pose
       ? fmt(image.camera_pose.heading_deg) +
@@ -538,8 +540,8 @@ export function command() {
     icon('map') +
     esc(entity(state.center)?.name || '未选中心') +
     '</button><button data-action="reset-radius">' +
-    state.radius +
-    ' m 缓冲圈 ×</button><button data-action="time-now">最近 ' +
+    (entity(state.center)?.coordinates ? state.radius + ' m 缓冲圈 ×' : '中心未定位 · 无法计算范围') +
+    '</button><button data-action="time-now">最近 ' +
     state.hours +
     ' 小时 ×</button><span>' +
     badge('approved', '正式检索仅已审核') +
@@ -644,7 +646,7 @@ export function review() {
           '<span><strong>' +
           esc(entity(effective(r).entity_id)?.name || '待关联对象') +
           '</strong><small>' +
-          time(state.images.find((i) => i.id === r.image_id)?.captured_at) +
+          captureTime(state.images.find((i) => i.id === r.image_id)) +
           '</small>' +
           badge(r.status) +
           '</span></button>',

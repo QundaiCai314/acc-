@@ -35,10 +35,22 @@ def main():
         page.locator('#image-form input[type=file]').set_input_files({
             'name': 'contract-only.png', 'mimeType': 'image/png', 'buffer': base64.b64decode(png)})
         page.locator('#image-form [name=captured_at]').fill('2026-01-01T12:00')
+        page.locator('#image-form [name=captured_on]').fill('2026-01-01')
         page.locator('#image-form [name=source]').fill('测试专用合成图，非现场照片')
+        page.get_by_role('button', name='上传至当前现场').click()
+        expect(page.locator('#notice')).to_contain_text('请填写其中一项')
+        page.locator('#image-form [name=captured_at]').fill('')
         page.get_by_role('button', name='上传至当前现场').click()
         expect(page.locator('#notice')).to_have_text('操作完成。', timeout=15000)
         assert page.evaluate("async () => !(await import('./state.js')).state.images[0].camera_pose")
+        assert page.evaluate("async () => {const i=(await import('./state.js')).state.images[0];return i.captured_at === null && i.captured_on === '2026-01-01'}")
+        assert page.evaluate("""async () => {
+            const {captureWithinWindow}=await import('./capture-time.js');
+            const image={captured_on:'2026-01-01'};
+            return captureWithinWindow(image,'2026-01-02T12:00:00Z',50)
+              && !captureWithinWindow(image,'2026-01-02T12:00:00Z',49)
+              && !captureWithinWindow(image,'2026-01-02T11:59:59Z',50);
+        }""")
         checks = page.evaluate("""async () => {
             const {inputTemplate,validateRealDataset,validateRealImage}=await import('./intake.js');
             const rejected=[];

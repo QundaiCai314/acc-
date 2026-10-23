@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -55,7 +55,8 @@ class CameraPose(StrictModel):
 
 class ImageInput(StrictModel):
     name: str = Field(min_length=1, max_length=200)
-    captured_at: datetime
+    captured_at: datetime | None = None
+    captured_on: date | None = None
     source: Text
     evidence_basis: Literal['exercise', 'field_image']
     mime_type: Literal['image/png', 'image/jpeg']
@@ -64,7 +65,11 @@ class ImageInput(StrictModel):
 
     @model_validator(mode='after')
     def valid_image(self):
-        if self.captured_at.tzinfo is None:
+        if (self.captured_at is None) == (self.captured_on is None):
+            raise ValueError('Provide exactly one of captured_at or captured_on')
+        if self.captured_on is not None and not 2 <= self.captured_on.year <= 9998:
+            raise ValueError('captured_on year must be between 2 and 9998')
+        if self.captured_at is not None and self.captured_at.tzinfo is None:
             raise ValueError('captured_at must include timezone')
         try:
             data = base64.b64decode(self.content_base64, validate=True)
@@ -168,7 +173,8 @@ class Citation(StrictModel):
     entity_name: str
     coordinates: Coordinates
     distance_m: float
-    captured_at: datetime
+    captured_at: datetime | None = None
+    captured_on: date | None = None
     source: str
     evidence_basis: Literal['exercise', 'field_image']
     origin: Literal['ai', 'imported_unverified']

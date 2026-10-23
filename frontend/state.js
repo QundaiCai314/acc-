@@ -1,3 +1,4 @@
+import { captureWithinWindow } from './capture-time.js';
 export const emptyData = () => ({
   dataset: null,
   datasets: [],
@@ -49,8 +50,7 @@ export const activeArtifact = (kind) =>
 export const visibleAnnotations = () =>
   state.annotations.filter((a) => {
     const img = state.images.find((i) => i.id === a.image_id);
-    const age = (new Date(state.asOf) - new Date(img?.captured_at)) / 3600000;
-    return age >= 0 && age <= state.hours;
+    return captureWithinWindow(img, state.asOf, state.hours);
   });
 export function reviewedRelations() {
   const approved = new Set(

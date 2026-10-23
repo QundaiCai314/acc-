@@ -12,6 +12,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from .access import principal
+from .evidence_time import capture_bounds
 from .geometry_models import (
     ArtifactReview, ReasonQuery, Registration, RelationSet, RoadNetwork, RouteQuery, TransformQuery,
 )
@@ -218,12 +219,13 @@ def evidence_records(store, dataset_id, as_of, max_age_hours=None):
         if record['id'] in withdrawn or review['action'] != 'approve':
             continue
         image = get(store, 'spatial_image', record['image_id'], metadata=True)
-        timestamp = datetime.fromisoformat(image['captured_at'])
-        if timestamp > as_of or (max_age_hours is not None and timestamp < as_of - timedelta(hours=max_age_hours)):
+        earliest, latest = capture_bounds(image)
+        if latest > as_of or (max_age_hours is not None and earliest < as_of - timedelta(hours=max_age_hours)):
             continue
         result[record['id']] = {'annotation_id': record['id'], 'image_id': image['id'],
                                 'image_url': f'/spatial/images/{image["id"]}/content',
-                                'captured_at': image['captured_at'], 'source': image['source'],
+                                'captured_at': image.get('captured_at'), 'captured_on': image.get('captured_on'),
+                                'source': image['source'],
                                 'evidence_basis': image['evidence_basis'], 'annotation': review['approved_annotation'],
                                 'camera_pose': image.get('camera_pose'),
                                 'reviewer': review['reviewer'], 'reviewed_at': review['created_at']}

@@ -9,6 +9,7 @@ import {
   selectedRelationPaths,
 } from './state.js';
 import { mapSvg } from './map.js';
+import { captureWithinWindow } from './capture-time.js';
 import * as maplibregl from './vendor/maplibre-gl.mjs';
 
 let map,
@@ -193,9 +194,8 @@ export function mapData() {
       }),
     );
   for (const img of state.images) {
-    const pose = img.camera_pose,
-      age = (new Date(state.asOf) - new Date(img.captured_at)) / 3600000;
-    if (!pose || age < 0 || age > state.hours) continue;
+    const pose = img.camera_pose;
+    if (!pose || !captureWithinWindow(img, state.asOf, state.hours)) continue;
     const active = img.id === (state.hoverCamera || state.cameraImage);
     const a = pose.heading_deg - pose.horizontal_fov_deg / 2;
     const polygon = [

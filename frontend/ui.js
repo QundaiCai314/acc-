@@ -73,6 +73,21 @@ export const time = (value) =>
         hour12: false,
       })
     : '—';
+export const captureTime = (image) =>
+  image?.captured_on
+    ? esc(image.captured_on) + '（仅日期，时区未知）'
+    : image?.captured_at
+      ? esc(
+          new Date(image.captured_at).toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false,
+          }),
+        )
+      : '采集时间未知';
 export const options = (rows, selected) =>
   rows
     .map(

@@ -1049,6 +1049,10 @@ const submits = {
   'image-form': async (f, d) => {
     const client = requireLive(),
       file = d.get('file');
+    const capturedAt = d.get('captured_at'),
+      capturedOn = d.get('captured_on');
+    if (Boolean(capturedAt) === Boolean(capturedOn))
+      throw new Error('采集时间与仅日期请填写其中一项。');
     validateRealImage({ evidence_basis: d.get('evidence_basis'), camera_pose: cameraPayload(d) });
     if (!file.size || file.size > 5000000 || !['image/png', 'image/jpeg'].includes(file.type))
       throw new Error('请选择不超过 5 MB 的 PNG 或 JPEG 图片。');
@@ -1060,7 +1064,9 @@ const submits = {
     });
     await client.request(datasetPath() + '/images', {
       name: file.name,
-      captured_at: new Date(d.get('captured_at')).toISOString(),
+      ...(capturedAt
+        ? { captured_at: new Date(capturedAt).toISOString() }
+        : { captured_on: capturedOn }),
       source: d.get('source'),
       evidence_basis: d.get('evidence_basis'),
       mime_type: file.type,

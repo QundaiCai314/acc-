@@ -76,7 +76,7 @@ def validate_references(store, ds, dataset_id, payload):
 
 def register(payload: Registration):
     source = np.array([p.scene for p in payload.control_points]) * payload.scene_unit_m
-    target = np.array([p.enu_m for p in payload.control_points])
+    target = np.array([p.target for p in payload.control_points])
     x, y = source - source.mean(axis=0), target - target.mean(axis=0)
     # Three non-collinear points determine a proper 3D rigid transform; no reflection is allowed.
     for points in (x, y):
@@ -96,7 +96,7 @@ def register(payload: Registration):
     matrix[:3, 3] = translation
     fit_errors = np.linalg.norm(source @ (scale * rotation).T + translation - target, axis=1)
     check_source = np.array([p.scene for p in payload.check_points])
-    check_target = np.array([p.enu_m for p in payload.check_points])
+    check_target = np.array([p.target for p in payload.check_points])
     check_errors = np.linalg.norm(check_source @ matrix[:3, :3].T + translation - check_target, axis=1)
     fit_rmse, check_rmse = (float(np.sqrt(np.mean(e*e))) for e in (fit_errors, check_errors))
     if max(fit_rmse, check_rmse) > payload.max_rmse_m or max(*fit_errors, *check_errors) > payload.max_error_m:
@@ -107,12 +107,14 @@ def register(payload: Registration):
         aligned = corners @ matrix[:3, :3].T + translation
         if np.any(np.linalg.norm(aligned, axis=1) > 10000):
             raise HTTPException(422, 'Aligned scene objects must stay within 10 km of origin')
-        objects[obj.entity_id] = {'corners_enu_m': aligned.tolist(), 'min_enu_m': aligned.min(axis=0).tolist(),
-                                  'max_enu_m': aligned.max(axis=0).tolist()}
-    return {'matrix_scene_to_enu': matrix.tolist(), 'estimated_scale': scale,
+        suffix = 'enu_m' if payload.target_frame == 'enu' else 'local_m'
+        objects[obj.entity_id] = {f'corners_{suffix}': aligned.tolist(), f'min_{suffix}': aligned.min(axis=0).tolist(),
+                                  f'max_{suffix}': aligned.max(axis=0).tolist()}
+    return {f'matrix_scene_to_{payload.target_frame}': matrix.tolist(), 'estimated_scale': scale,
             'fit_rmse_m': fit_rmse, 'check_rmse_m': check_rmse,
             'fit_residuals_m': fit_errors.tolist(), 'check_residuals_m': check_errors.tolist(),
-            'objects': objects, 'axis_order': ['east', 'north', 'up'],
+            'objects': objects, 'target_frame': payload.target_frame,
+            'axis_order': ['east', 'north', 'up'] if payload.target_frame == 'enu' else ['x', 'y', 'z'],
             'max_control_error_m': float(max(*fit_errors, *check_errors))}
 
 
@@ -232,11 +234,11 @@ def evidence_records(store, dataset_id, as_of, max_age_hours=None):
     return result
 
 
-def shortest_path(network, start, end, mode, avoided, evidence):
+def shortest_path(network, start, end, mode, avoided, evidence, basis='reviewed_status'):
     graph, excluded = {}, []
     for edge in network['snapshot']['edges']:
         reason = None
-        if edge['status'] != 'open':
+        if edge['status'] == 'blocked' or (edge['status'] == 'unknown' and basis != 'mapped_topology'):
             reason = edge['status']
         elif mode not in edge['modes']:
             reason = 'mode_not_allowed'
@@ -294,13 +296,17 @@ def route(dataset_id: UUID, payload: RouteQuery, request: Request):
         raise HTTPException(422, 'Unknown avoided edge')
     evidence = evidence_records(store, dataset_id, payload.as_of)
     result = shortest_path(network, payload.start_entity_id, payload.end_entity_id, payload.mode,
-                           payload.avoid_edge_ids, evidence)
+                           payload.avoid_edge_ids, evidence, payload.basis)
     ids = {identifier for edge in result['edges'] for identifier in edge['annotation_ids']}
-    return {**result, 'dataset_id': str(dataset_id), 'coordinate_basis': ds.coordinate_basis,
+    return {**result, 'basis': payload.basis,
+            'unverified_edge_ids': [e['id'] for e in result['edges'] if e['status'] == 'unknown'],
+            'dataset_id': str(dataset_id), 'coordinate_basis': ds.coordinate_basis,
             'query': payload.model_dump(mode='json'), 'network': artifact_citation(network, review),
             'citations': [evidence[i] for i in sorted(ids)],
             'limitations': ['仅表示审核路网快照中的连通性，不是现场通行安全保证',
-                            'blocked 和 unknown 道路不参与寻路；as_of 不回放历史审核状态']}
+                            ('仅地图拓扑：允许经过状态未知的地图道路，不表示已核实通行；明确封闭道路仍排除'
+                             if payload.basis == 'mapped_topology' else '封闭和未知道路不参与通行状态查询'),
+                            'as_of 不回放历史审核状态']}
 
 
 @router.post('/registrations/{registration_id}/transform')
@@ -308,16 +314,19 @@ def transform(registration_id: UUID, payload: TransformQuery, request: Request):
     store = request.app.state.store
     record = artifact(store, registration_id, 'registration')
     record, review = active_artifact(store, registration_id, record['dataset_id'], 'registration', payload.as_of)
-    matrix = np.array(record['computed']['matrix_scene_to_enu'])
+    frame = record['snapshot'].get('target_frame', 'enu')
+    matrix = np.array(record['computed'][f'matrix_scene_to_{frame}'])
     points = np.array(payload.points) @ matrix[:3, :3].T + matrix[:3, 3]
     if np.any(np.linalg.norm(points, axis=1) > 10000):
         raise HTTPException(422, 'Transformed points exceed the 10 km local-frame limit')
-    return {'enu_m': points.tolist(),
+    return {f'{frame}_m': points.tolist(), 'target_frame': frame,
             'coordinate_basis': dataset(store, record['dataset_id']).coordinate_basis,
-            'wgs84': enu_to_wgs84(points, record['snapshot']['origin'], record['snapshot']['origin_altitude_m']),
+            'wgs84': (enu_to_wgs84(points, record['snapshot']['origin'], record['snapshot']['origin_altitude_m'])
+                      if frame == 'enu' else None),
             'registration': artifact_citation(record, review),
             'check_rmse_m': record['computed']['check_rmse_m'],
-            'limitations': ['配准精度取决于输入控制点及独立检查点；转换结果不会自动覆盖地图坐标']}
+            'limitations': ['配准精度取决于输入控制点及检查点；转换结果不会自动覆盖地图坐标'] +
+                            (['局部坐标轴方向未地理标定，不能生成 WGS84 位置或认定地理上下关系'] if frame == 'local' else [])}
 
 
 def relation_path(relations, start, target, predicate, max_hops, evidence):
@@ -376,6 +385,8 @@ def reason(dataset_id: UUID, payload: ReasonQuery, request: Request):
             if ids[kind] is None:
                 raise HTTPException(422, f'{kind} ID required for these conditions')
             record, review = active_artifact(store, ids[kind], dataset_id, kind, payload.as_of)
+            if kind == 'registration' and record['snapshot'].get('target_frame', 'enu') != 'enu':
+                raise HTTPException(422, 'Geographic above/below reasoning requires an ENU registration')
             artifacts[kind] = record
             citations.append(artifact_citation(record, review))
     evidence = evidence_records(store, dataset_id, payload.as_of, payload.max_age_hours)

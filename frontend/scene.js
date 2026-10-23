@@ -15,6 +15,7 @@ let renderer,
   labels = [],
   reg;
 const world = (p) => new THREE.Vector3(p[0], p[2], -p[1]);
+const target = (p) => p.local_m ?? p.enu_m;
 function dispose() {
   cancelAnimationFrame(frame);
   controls?.dispose();
@@ -53,9 +54,9 @@ export function sceneControls(r) {
       '</small></div>'
     : '';
   return (
-    '<div class="scene-head"><span>局部三维 / ENU</span><span>' +
+    '<div class="scene-head"><span>' + (r.snapshot.target_frame === 'local' ? '局部三维 / XYZ · 未地理定位' : '局部三维 / ENU') + '</span><span>' +
     r.snapshot.control_points.length +
-    ' GCP · ' +
+    ' 配准点 · ' +
     r.snapshot.check_points.length +
     ' 检查点</span></div><div class="registration-viewports"><div class="scene-frame"><div id="scene-slot" data-registration="' +
     esc(r.id) +
@@ -63,17 +64,17 @@ export function sceneControls(r) {
     pip +
     '</div><div class="control-plan"><h3>2D · 控制点平面</h3>' +
     plan(r) +
-    '<p>目标 ENU / m<br>点位与下方残差表联动</p></div></div><div class="scene-hud"><span><i class="dot cyan"></i>控制点</span><span><i class="dot amber"></i>检查点</span><span>拖动旋转 · 滚轮缩放</span></div>'
+    '<p>目标 ' + (r.snapshot.target_frame === 'local' ? 'XYZ（未定位）' : 'ENU') + ' / m<br>点位与下方残差表联动</p></div></div><div class="scene-hud"><span><i class="dot cyan"></i>控制点</span><span><i class="dot amber"></i>检查点</span><span>拖动旋转 · 滚轮缩放</span></div>'
   );
 }
 function plan(r) {
   const points = [...r.snapshot.control_points, ...r.snapshot.check_points],
-    extent = Math.max(20, ...points.flatMap((p) => p.enu_m.slice(0, 2).map(Math.abs))),
+    extent = Math.max(20, ...points.flatMap((p) => target(p).slice(0, 2).map(Math.abs))),
     scale = 85 / extent;
   const body = points
     .map((p, i) => {
-      const x = 110 + p.enu_m[0] * scale,
-        y = 160 - p.enu_m[1] * scale;
+      const x = 110 + target(p)[0] * scale,
+        y = 160 - target(p)[1] * scale;
       return (
         '<g role="button" tabindex="0" data-action="point" data-id="' +
         esc(p.label) +
@@ -89,7 +90,7 @@ function plan(r) {
         (i < r.snapshot.control_points.length
           ? (state.artTheme === 'brutalist' ? '#f5f5f0' : state.artTheme === 'mineral' ? '#45937a' : '#1d4696')
           : (state.artTheme === 'brutalist' ? '#e8ff00' : state.artTheme === 'mineral' ? '#c9933b' : '#c83720')) +
-        '"/><text x="' +
+        '"/><text pointer-events="none" x="' +
         (x > 145 ? x - 7 : x + 7) +
         '" y="' +
         (y - 8) +
@@ -98,16 +99,17 @@ function plan(r) {
         '" fill="' +
         (state.artTheme === 'vellum' || !state.artTheme ? '#161513' : '#f0ebe1') +
         '" font-size="8">' +
-        esc(p.label) +
+        (state.point === p.label || points.length <= 12 ? esc(p.label) : '') +
         '</text></g>'
       );
     })
     .join('');
   const gStroke = state.artTheme === 'vellum' || !state.artTheme ? '#cfc7b6' : '#2e2e2a';
   const aStroke = state.artTheme === 'vellum' || !state.artTheme ? '#787062' : '#6e6a60';
+  const local = r.snapshot.target_frame === 'local';
   const tFill = state.artTheme === 'vellum' || !state.artTheme ? '#161513' : '#d8d3c8';
   return (
-    '<svg viewBox="0 0 220 320" role="group" aria-label="控制点 ENU 俯视图"><defs><pattern id="plan-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="' + gStroke + '" stroke-width=".6"/></pattern></defs><rect width="220" height="320" fill="url(#plan-grid)"/><path d="M20 160H205M110 290V20" stroke="' + aStroke + '" stroke-width=".8"/><text x="118" y="24" fill="' + tFill + '" font-size="9">N</text><text x="202" y="153" fill="' + tFill + '" font-size="9">E</text>' +
+    '<svg viewBox="0 0 220 320" role="group" aria-label="控制点目标坐标俯视图"><defs><pattern id="plan-grid" width="22" height="22" patternUnits="userSpaceOnUse"><path d="M22 0H0V22" fill="none" stroke="' + gStroke + '" stroke-width=".6"/></pattern></defs><rect width="220" height="320" fill="url(#plan-grid)"/><path d="M20 160H205M110 290V20" stroke="' + aStroke + '" stroke-width=".8"/><text x="118" y="24" fill="' + tFill + '" font-size="9">' + (local ? 'Y' : 'N') + '</text><text x="202" y="153" fill="' + tFill + '" font-size="9">' + (local ? 'X' : 'E') + '</text>' +
     body +
     '</svg>'
   );
@@ -176,8 +178,9 @@ function create(slot) {
   camera.position.set(100, 80, 100);
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  const matrix = reg.computed?.matrix_scene_to_enu
-    ? new THREE.Matrix4().fromArray(reg.computed.matrix_scene_to_enu.flat()).transpose()
+  const values = reg.computed?.matrix_scene_to_local ?? reg.computed?.matrix_scene_to_enu;
+  const matrix = values
+    ? new THREE.Matrix4().fromArray(values.flat()).transpose()
     : new THREE.Matrix4().makeScale(
         reg.snapshot.scene_unit_m,
         reg.snapshot.scene_unit_m,
@@ -187,7 +190,7 @@ function create(slot) {
   targets = [];
   labels = [];
   const all = [...reg.snapshot.control_points, ...reg.snapshot.check_points];
-  const extent = Math.max(30, ...all.flatMap((p) => p.enu_m.map(Math.abs)));
+  const extent = Math.max(30, ...all.flatMap((p) => target(p).map(Math.abs)));
   const grid = new THREE.GridHelper(extent * 4, 24, 0x3d5364, 0x233542);
   scene.add(grid);
   const axes = new THREE.AxesHelper(extent * 0.55);
@@ -235,24 +238,24 @@ function create(slot) {
     });
   }
   all.forEach((p, i) => {
-    const target = world(p.enu_m),
+    const targetPoint = world(target(p)),
       actual = world(transform(p.scene)),
       check = i >= reg.snapshot.control_points.length;
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(extent * 0.016, 14, 10),
       new THREE.MeshBasicMaterial({ color: check ? (isVellum ? 0xc83720 : 0xe8ff00) : (isVellum ? 0x1d4696 : 0x45937a) }),
     );
-    sphere.position.copy(target);
+    sphere.position.copy(targetPoint);
     sphere.userData.point = p.label;
     scene.add(sphere);
     targets.push(sphere);
-    labels.push({ position: target, text: p.label });
-    const residual = new THREE.BufferGeometry().setFromPoints([actual, target]);
+    labels.push({ position: targetPoint, text: p.label });
+    const residual = new THREE.BufferGeometry().setFromPoints([actual, targetPoint]);
     scene.add(new THREE.Line(residual, new THREE.LineBasicMaterial({ color: 0xc83720 })));
   });
   for (const img of state.images) {
     const pose = img.camera_pose;
-    if (!pose || pose.altitude_m == null) continue;
+    if (!pose || pose.altitude_m == null || !reg.snapshot.origin) continue;
     const origin = reg.snapshot.origin;
     const east =
         (pose.coordinates.longitude - origin.longitude) *
@@ -334,7 +337,7 @@ function create(slot) {
         'px,' +
         (-pos.y * 0.5 + 0.5) * element.clientHeight +
         'px)';
-      label.element.hidden = pos.z > 1 || pos.z < -1;
+      label.element.hidden = pos.z > 1 || pos.z < -1 || (labels.length > 12 && state.point !== label.text);
     }
   }
   tick();

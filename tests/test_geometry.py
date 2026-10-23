@@ -90,6 +90,50 @@ class GeometryTests(unittest.TestCase):
         other=self.post('/spatial/datasets',json.loads((ROOT/'examples/spatial_dataset.json').read_text(encoding='utf-8')))['id']
         self.post(f'/spatial/datasets/{other}/route',query,422)
 
+    def test_topology_is_explicit_and_does_not_override_safety_gates(self):
+        payload = network_payload()
+        payload['edges'][1]['status'] = 'unknown'
+        network = self.post(self.base+'/networks', payload)['id']
+        query = {'network_id': network, 'start_entity_id': 'building-a',
+                 'end_entity_id': 'entrance-far', 'as_of': NOW, 'basis': 'mapped_topology'}
+        self.post(self.base+'/route', query, 409)
+        self.approve(network)
+        result = self.post(self.base+'/route', query)
+        self.assertEqual(result['distance_m'], 260)
+        self.assertEqual(result['unverified_edge_ids'], ['first'])
+        self.assertEqual(result['edges'][0]['status'], 'unknown')
+        self.assertIn({'edge_id': 'direct', 'reason': 'blocked'}, result['excluded_edges'])
+        self.assertEqual(self.post(self.base+'/route', {**query, 'basis': 'reviewed_status'})['status'], 'unreachable')
+        self.assertEqual(self.post(self.base+'/route', {**query, 'mode': 'vehicle'})['status'], 'unreachable')
+        self.assertEqual(self.post(self.base+'/route', {**query, 'avoid_edge_ids': ['first']})['status'], 'unreachable')
+        self.assertEqual(self.post(self.base+'/route', {**query, 'start_entity_id': 'entrance-far',
+                                                      'end_entity_id': 'building-a'})['status'], 'unreachable')
+
+    def test_local_registration_never_invents_geography(self):
+        payload = registration_payload()
+        payload.update(target_frame='local', origin=None, origin_altitude_m=None)
+        for point in payload['control_points'] + payload['check_points']:
+            point['local_m'] = point.pop('enu_m')
+        registration = self.post(self.base+'/registrations', payload)
+        self.assertNotIn('matrix_scene_to_enu', registration['computed'])
+        self.assertEqual(registration['computed']['axis_order'], ['x', 'y', 'z'])
+        endpoint = f'/spatial/registrations/{registration["id"]}/transform'
+        query = {'as_of': NOW, 'points': [[1, 2, 3]]}
+        self.post(endpoint, query, 409)
+        self.approve(registration['id'])
+        result = self.post(endpoint, query)
+        self.assertIsNone(result['wgs84'])
+        self.assertNotIn('enu_m', result)
+        np.testing.assert_allclose(result['local_m'], query['points'], atol=1e-10)
+        self.post(self.base+'/reason', {'as_of': NOW, 'registration_id': registration['id'],
+                  'all_of': [{'relation': 'above', 'reference_entity_id': 'building-a'}]}, 422)
+        bad = copy.deepcopy(payload)
+        bad['origin'] = {'latitude': 0, 'longitude': 0}
+        self.post(self.base+'/registrations', bad, 422)
+        bad = copy.deepcopy(payload)
+        bad['control_points'][0]['enu_m'] = [0, 0, 0]
+        self.post(self.base+'/registrations', bad, 422)
+
     def test_registration_review_transform_and_independent_check(self):
         registration=self.post(self.base+'/registrations',registration_payload())
         endpoint=f'/spatial/registrations/{registration["id"]}/transform'

@@ -28,6 +28,8 @@
 
 POST /datasets/{id}/registrations 接受场景坐标到局部 ENU（东、北、上，单位米）的成对控制点。origin 使用 WGS84 经纬度，origin_altitude_m 使用椭球高，不是海拔正高。
 
+默认 target_frame=enu，与既有请求兼容。没有地理原点或已知轴向的真实扫描，使用 target_frame=local：每个控制/检查点填写 local_m（不能同时填 enu_m），且不允许填写 origin、origin_altitude_m。计算结果返回 matrix_scene_to_local；转换返回 local_m、wgs84=null，禁止用于地理 above/below 推理。局部扫描对齐不能据此声明已完成绝对地理配准。
+
 - 至少 3 个不共线控制点，以及至少 1 个不重复的独立检查点。检查点不参与求解。
 - scene_unit_m 声明原场景单位。默认估计刚体旋转和平移；solve_scale=true 时额外估计统一尺度，禁止反射。
 - NumPy SVD 求解并返回 4×4 变换矩阵、控制点残差、检查点残差和 RMSE。共线、病态控制点、拟合或检查误差超过阈值返回 422，不保存合格工件。
@@ -53,7 +55,9 @@ POST /datasets/{id}/route：
 
 采用 Dijkstra，处理单向边、步行/车辆权限、用户指定避让以及 blocked/unknown 状态。返回完整节点/边序列、道路长度总和、排除边及原因和审核来源。没有路径返回 unreachable，不退回直线距离。起终点相同返回 0 米。
 
-只有明确人工批准为 open 的边可用；图片“未见障碍物”不能单独把 unknown 改为 open。明确关联的有效图片记录若可见障碍物，也会排除该边。没有关联的图片不会自动关闭道路；应补上关联或提交新的道路快照。没有自动拉取 OSM、导航服务或实时交通，路网必须作为输入提供。结果是快照连通性，不是安全通行保证。
+默认 basis=reviewed_status，只有审核快照中标为 open 的边可用；图片“未见障碍物”不能单独把 unknown 改为 open。显式设置 basis=mapped_topology 时，允许经过 unknown 地图道路，返回 unverified_edge_ids，并注明通行未核实；不修改道路状态。两种模式都排除 blocked、方式不符、用户避让及关联证据失效或可见障碍物的边，也都要求工件批准、未撤回且在使用有效期内。/reason 的 reachable_from 仍使用默认通行状态规则。
+
+没有关联的图片不会自动关闭道路；应补上关联或提交新的道路快照。服务不会自动拉取实时交通。公开 OSM 存档导入与真实扫描验证见 [真实几何验证报告](real-geometry-validation-2026-10-23.md)，适配器仅支持报告中的有限道路类别。历史地图的使用有效期不是路况观测时间。结果是快照连通性，不是安全通行保证。
 
 ## 复杂关系
 

@@ -1,0 +1,652 @@
+{
+  "validated_at": "2026-10-23T05:15:01.863576+00:00",
+  "sources": [
+    {
+      "file": "roads.osm",
+      "url": "https://raw.githubusercontent.com/gboeing/osmnx/main/tests/input_data/planet_10.068,48.135_10.071,48.137.osm",
+      "sha256": "280febb5b8b084cd4f29c138f5f65f8b219efdca7070bc7233a85ef972fab2a9",
+      "bytes": 41689
+    },
+    {
+      "file": "car_cloud400.csv",
+      "url": "https://raw.githubusercontent.com/norlab-ulaval/libpointmatcher/master/examples/data/car_cloud400.csv",
+      "sha256": "f612b04c53c3dddb050062e6233ecc188f90280b9c4e5ce048b06b5f3d42ff22",
+      "bytes": 1500746
+    },
+    {
+      "file": "car_cloud401.csv",
+      "url": "https://raw.githubusercontent.com/norlab-ulaval/libpointmatcher/master/examples/data/car_cloud401.csv",
+      "sha256": "9073e1e188d4e054c749d4d221e5663dd94426e0df449b51cc33aaa86a89d469",
+      "bytes": 1234457
+    },
+    {
+      "file": "carCloudList.csv",
+      "url": "https://raw.githubusercontent.com/norlab-ulaval/libpointmatcher/master/examples/data/carCloudList.csv",
+      "sha256": "7ad9f6a6c27607807605c45ac18b4507757027c510657c571cd75b7d1b750bf5",
+      "bytes": 336
+    }
+  ],
+  "road_source": {
+    "snapshot_at": "2020-08-10T00:00:00Z",
+    "omitted": [
+      {
+        "way_id": "25129578",
+        "reason": "clipped_way_has_no_segment"
+      },
+      {
+        "way_id": "25216934",
+        "reason": "clipped_way_has_no_segment"
+      },
+      {
+        "way_id": "761947188",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947189",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947190",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947191",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947192",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947195",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947196",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947197",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947198",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947199",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      },
+      {
+        "way_id": "761947200",
+        "reason": "unsupported_class_or_restricted_access",
+        "tags": {
+          "access": "private",
+          "highway": "service",
+          "service": "driveway"
+        }
+      }
+    ],
+    "node_count": 27,
+    "edge_count": 25
+  },
+  "scan_source": {
+    "reference_points": 24989,
+    "reading_points": 25193,
+    "candidate_samples": 250,
+    "eligible_distinct_pairs": 185,
+    "selected_pairs": 80,
+    "selection_threshold_m": 0.2,
+    "raw_sample_nearest_neighbor_quantiles_m": [
+      0.08661773738303258,
+      0.66176437118603,
+      4.349239735556266
+    ],
+    "upstream_matrix": [
+      [
+        0.981715,
+        0.169605,
+        -0.0864239,
+        0.0614127
+      ],
+      [
+        -0.152902,
+        0.973034,
+        0.172703,
+        0.191433
+      ],
+      [
+        0.113385,
+        -0.15633,
+        0.981175,
+        -0.0338571
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "result": {
+    "oracle": {
+      "walk": {
+        "comparisons": 729,
+        "reachable_pairs": 509,
+        "start": "osm-n274969431",
+        "end": "osm-n5937853362",
+        "distance_m": 212.7156549576376
+      },
+      "vehicle": {
+        "comparisons": 729,
+        "reachable_pairs": 407,
+        "start": "osm-n274969431",
+        "end": "osm-n5937853362",
+        "distance_m": 212.7156549576376
+      }
+    },
+    "sample_topology_route": {
+      "status": "reachable",
+      "distance_m": 212.71565495763764,
+      "entity_ids": [
+        "osm-n274969431",
+        "osm-n274969432",
+        "osm-n274969433",
+        "osm-n274969434",
+        "osm-n7119017436",
+        "osm-n274969435",
+        "osm-n7119017438",
+        "osm-n274969436",
+        "osm-n274969437",
+        "osm-n274969427",
+        "osm-n274969428",
+        "osm-n7119017446",
+        "osm-n274969423",
+        "osm-n5937853361",
+        "osm-n5937853362"
+      ],
+      "edges": [
+        {
+          "id": "osm-w25216933-0",
+          "source": "osm-n274969431",
+          "target": "osm-n274969432",
+          "length_m": 6.972942474653087,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-1",
+          "source": "osm-n274969432",
+          "target": "osm-n274969433",
+          "length_m": 9.282393467536092,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-2",
+          "source": "osm-n274969433",
+          "target": "osm-n274969434",
+          "length_m": 6.645431546567426,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-3",
+          "source": "osm-n274969434",
+          "target": "osm-n7119017436",
+          "length_m": 3.3302799525030347,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-4",
+          "source": "osm-n7119017436",
+          "target": "osm-n274969435",
+          "length_m": 2.475351118796034,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-5",
+          "source": "osm-n274969435",
+          "target": "osm-n7119017438",
+          "length_m": 3.515710338530788,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-6",
+          "source": "osm-n7119017438",
+          "target": "osm-n274969436",
+          "length_m": 2.8679351918067715,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-7",
+          "source": "osm-n274969436",
+          "target": "osm-n274969437",
+          "length_m": 45.85927293510241,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216933-8",
+          "source": "osm-n274969437",
+          "target": "osm-n274969427",
+          "length_m": 10.875219560116276,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216933\", \"tags\": {\"name\": \"Haydnstra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216931-5",
+          "source": "osm-n274969427",
+          "target": "osm-n274969428",
+          "length_m": 25.13049924696725,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216931\", \"tags\": {\"name\": \"Goethestra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216931-6",
+          "source": "osm-n274969428",
+          "target": "osm-n7119017446",
+          "length_m": 17.14670107560704,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216931\", \"tags\": {\"name\": \"Goethestra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w25216931-7",
+          "source": "osm-n7119017446",
+          "target": "osm-n274969423",
+          "length_m": 4.99316166005124,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"25216931\", \"tags\": {\"name\": \"Goethestra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w275776236-0",
+          "source": "osm-n5937853361",
+          "target": "osm-n274969423",
+          "length_m": 38.76324480337426,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"275776236\", \"tags\": {\"name\": \"Richard-Wagner-Stra\\u00dfe\", \"highway\": \"residential\", \"maxspeed\": \"30\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        },
+        {
+          "id": "osm-w628913513-0",
+          "source": "osm-n5937853361",
+          "target": "osm-n5937853362",
+          "length_m": 34.8575115860259,
+          "bidirectional": true,
+          "modes": [
+            "vehicle",
+            "walk"
+          ],
+          "status": "unknown",
+          "source_note": "{\"way_id\": \"628913513\", \"tags\": {\"highway\": \"residential\"}, \"basis\": \"OSM mapped segment, not a field road-condition observation\"}",
+          "annotation_ids": []
+        }
+      ],
+      "excluded_edges": [],
+      "basis": "mapped_topology",
+      "unverified_edge_ids": [
+        "osm-w25216933-0",
+        "osm-w25216933-1",
+        "osm-w25216933-2",
+        "osm-w25216933-3",
+        "osm-w25216933-4",
+        "osm-w25216933-5",
+        "osm-w25216933-6",
+        "osm-w25216933-7",
+        "osm-w25216933-8",
+        "osm-w25216931-5",
+        "osm-w25216931-6",
+        "osm-w25216931-7",
+        "osm-w275776236-0",
+        "osm-w628913513-0"
+      ],
+      "dataset_id": "c4114592-6d17-417b-bc0c-dee76a313f3a",
+      "coordinate_basis": "measured",
+      "query": {
+        "as_of": "2026-10-23T05:15:01.863576Z",
+        "network_id": "58a517f2-b0bf-49e6-a0a0-ea0a6e8c5691",
+        "start_entity_id": "osm-n274969431",
+        "end_entity_id": "osm-n5937853362",
+        "mode": "walk",
+        "basis": "mapped_topology",
+        "avoid_edge_ids": []
+      },
+      "network": {
+        "artifact_id": "58a517f2-b0bf-49e6-a0a0-ea0a6e8c5691",
+        "artifact_type": "road_network",
+        "source_note": "OpenStreetMap contributors / ODbL 1.0; OSMnx archived extract; source snapshot 2020-08-10T00:00:00Z; mapped GPS, not survey-grade or live traffic. Usage interval is administrative only; all field conditions UNKNOWN. Only mapped_topology can traverse unknown edges after review.",
+        "reviewer": "local",
+        "reviewed_at": "2026-10-23T05:15:02.820752+00:00",
+        "valid_from": "2026-10-23T05:15:01.863576Z",
+        "valid_until": "2026-10-30T05:15:01.863576Z"
+      },
+      "citations": [],
+      "limitations": [
+        "仅表示审核路网快照中的连通性，不是现场通行安全保证",
+        "仅地图拓扑：允许经过状态未知的地图道路，不表示已核实通行；明确封闭道路仍排除",
+        "as_of 不回放历史审核状态"
+      ]
+    },
+    "default_route": "unreachable",
+    "registration": {
+      "matrix_scene_to_local": [
+        [
+          0.980917231764153,
+          0.17230255353293714,
+          -0.09007338382774085,
+          0.08150813460061512
+        ],
+        [
+          -0.15479592967885472,
+          0.9724290101404347,
+          0.17441341803930682,
+          0.19358036805162215
+        ],
+        [
+          0.11764184877418972,
+          -0.1571421340167053,
+          0.9805441066742826,
+          -0.014357355499838409
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "estimated_scale": 1.0,
+      "fit_rmse_m": 0.07627504127221986,
+      "check_rmse_m": 0.09486294655939158,
+      "fit_residuals_m": [
+        0.021122319131040748,
+        0.10461440487021527,
+        0.04803238169580168,
+        0.19863369306231418,
+        0.06445423536892439,
+        0.017108215778478365,
+        0.015023551686578448,
+        0.04719926378349647,
+        0.03445528783905291,
+        0.1154060105953516,
+        0.011439022248022708,
+        0.14805946570795822,
+        0.04402217177237882,
+        0.010673140569578746,
+        0.039551790947820395,
+        0.022052326877487153,
+        0.07873239824295038,
+        0.10746707320017389,
+        0.04028984594845552,
+        0.16393854615654302,
+        0.04484756271243295,
+        0.0511011588711615,
+        0.06433410845280269,
+        0.08323082008363086,
+        0.019297611953404237,
+        0.04147376235471376,
+        0.04533356565330158,
+        0.03218802926217615,
+        0.11995310672133225,
+        0.037358177401902656,
+        0.06608756691045727,
+        0.04210468828510063,
+        0.0627275829674192,
+        0.08881236362999702,
+        0.05685870757422479,
+        0.023093044398646595,
+        0.04754230241534745,
+        0.07608435641577625,
+        0.12397169133423964,
+        0.06285093857670798
+      ],
+      "check_residuals_m": [
+        0.06699720828343511,
+        0.10057357530759246,
+        0.03257768565653398,
+        0.13296805066044345,
+        0.027026986098911073,
+        0.026591628652888475,
+        0.11207313158009427,
+        0.01713774777821165,
+        0.14100862411461607,
+        0.014872669576858557,
+        0.08888598867915377,
+        0.14155446580623418,
+        0.04670667405685144,
+        0.04370118714945829,
+        0.043997930061738806,
+        0.062136291379012054,
+        0.030530631950212755,
+        0.022112496643483123,
+        0.11765997063079618,
+        0.06477759213029341,
+        0.07533906180664858,
+        0.05991642880744355,
+        0.09324051813266218,
+        0.2201882830452013,
+        0.0632059557661474,
+        0.025114587331973182,
+        0.061916235939132605,
+        0.04263215890423804,
+        0.0626596434401931,
+        0.06523050569353145,
+        0.11494959497903529,
+        0.13144235846307206,
+        0.04870626544426756,
+        0.15286774142725262,
+        0.19841210720565855,
+        0.11082381291981042,
+        0.09535338766743652,
+        0.08851013501908571,
+        0.15170495578619178,
+        0.04698711919742855
+      ],
+      "objects": {},
+      "target_frame": "local",
+      "axis_order": [
+        "x",
+        "y",
+        "z"
+      ],
+      "max_control_error_m": 0.2201882830452013
+    },
+    "held_out_transform_errors_m": [
+      0.06699720828343511,
+      0.10057357530759246,
+      0.03257768565653398,
+      0.13296805066044345,
+      0.027026986098911073,
+      0.026591628652888475,
+      0.11207313158009427,
+      0.01713774777821165,
+      0.14100862411461607,
+      0.014872669576858557,
+      0.08888598867915377,
+      0.14155446580623418,
+      0.04670667405685144,
+      0.04370118714945829,
+      0.043997930061738806,
+      0.062136291379012054,
+      0.030530631950212755,
+      0.022112496643483123,
+      0.11765997063079618,
+      0.06477759213029341,
+      0.07533906180664858,
+      0.05991642880744355,
+      0.09324051813266218,
+      0.2201882830452013,
+      0.0632059557661474,
+      0.025114587331973182,
+      0.061916235939132605,
+      0.04263215890423804,
+      0.0626596434401931,
+      0.06523050569353145,
+      0.11494959497903529,
+      0.13144235846307206,
+      0.04870626544426756,
+      0.15286774142725262,
+      0.19841210720565855,
+      0.11082381291981042,
+      0.09535338766743652,
+      0.08851013501908571,
+      0.15170495578619178,
+      0.04698711919742855
+    ],
+    "pending_gate": 409,
+    "withdrawn_gate": 409,
+    "corrupted_check_point": 422,
+    "review_scope": "Automated contract checks in deleted temporary DB only; all live imports remain pending.",
+    "upstream_comparison": {
+      "rotation_difference_deg": 0.27860401923528705,
+      "translation_difference_m": 0.028083406433485045,
+      "limits": {
+        "rotation_deg": 0.5,
+        "translation_m": 0.08
+      }
+    }
+  },
+  "limits": [
+    "Two independent validation datasets, not the Haiti disaster photo site.",
+    "OSM archive: static mapped connectivity, no observed road states or live traffic.",
+    "Real scans: reference-assisted pairs, conditional hold-out error, not surveyed GCP accuracy.",
+    "No WGS84 origin or known vertical axis for the 3D dataset; no absolute georeferencing claim.",
+    "Artifact validity is an administrative usage interval, not source acquisition time."
+  ],
+  "rights": {
+    "road_data": "OpenStreetMap contributors, ODbL 1.0; https://www.openstreetmap.org/copyright",
+    "scan_data": "libpointmatcher sample data, retain BSD-3-Clause notice in libpointmatcher-LICENSE.txt; no separately documented survey accuracy"
+  }
+}

@@ -1099,6 +1099,7 @@ const submits = {
       start_entity_id: d.get('start_entity_id'),
       end_entity_id: d.get('end_entity_id'),
       mode: d.get('mode'),
+      basis: d.get('basis'),
       as_of: new Date(d.get('as_of')).toISOString(),
     };
     state.route = await client.request(datasetPath() + '/route', payload);

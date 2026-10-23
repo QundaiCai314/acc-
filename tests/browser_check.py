@@ -150,6 +150,10 @@ def main():
         page.locator('[name=end_entity_id]').select_option('east')
         page.get_by_role('button', name='计算路径').click()
         expect(page.locator('.route-result')).to_contain_text('350', timeout=15000)
+        page.locator('#route-form [name=basis]').select_option('mapped_topology')
+        page.get_by_role('button', name='计算路径').click()
+        expect(page.locator('.route-result')).to_contain_text('仅地图拓扑', timeout=15000)
+        assert page.evaluate("async () => (await import('./state.js')).state.route.basis") == 'mapped_topology'
         page.goto(args.url + '/#reason')
         page.get_by_role('button', name='增加条件', exact=False).click()
         rows = page.locator('.condition-row')

@@ -65,13 +65,25 @@ class RouteQuery(TimedQuery):
     start_entity_id: Identifier
     end_entity_id: Identifier
     mode: Literal['walk', 'vehicle'] = 'walk'
+    basis: Literal['reviewed_status', 'mapped_topology'] = 'reviewed_status'
     avoid_edge_ids: set[Identifier] = Field(default_factory=set, max_length=2000)
 
 
 class ControlPoint(StrictModel):
     label: Identifier
     scene: Point3
-    enu_m: Point3
+    enu_m: Point3 | None = None
+    local_m: Point3 | None = None
+
+    @model_validator(mode='after')
+    def one_target(self):
+        if (self.enu_m is None) == (self.local_m is None):
+            raise ValueError('Provide exactly one of enu_m or local_m')
+        return self
+
+    @property
+    def target(self):
+        return self.enu_m if self.enu_m is not None else self.local_m
 
 
 class SceneObject(StrictModel):
@@ -88,8 +100,9 @@ class SceneObject(StrictModel):
 
 class Registration(Validity):
     scene_name: str = Field(min_length=1, max_length=200)
-    origin: Coordinates
-    origin_altitude_m: float = Field(ge=-1000, le=10000)
+    target_frame: Literal['enu', 'local'] = 'enu'
+    origin: Coordinates | None = None
+    origin_altitude_m: float | None = Field(default=None, ge=-1000, le=10000)
     scene_unit_m: float = Field(default=1, gt=0, le=1000)
     solve_scale: bool = False
     control_points: list[ControlPoint] = Field(min_length=3, max_length=100)
@@ -101,12 +114,17 @@ class Registration(Validity):
     @model_validator(mode='after')
     def distinct(self):
         points = self.control_points + self.check_points
+        if self.target_frame == 'enu':
+            if self.origin is None or self.origin_altitude_m is None or any(p.enu_m is None for p in points):
+                raise ValueError('ENU registration requires origin, ellipsoid altitude and enu_m targets')
+        elif self.origin is not None or self.origin_altitude_m is not None or any(p.local_m is None for p in points):
+            raise ValueError('Local registration requires local_m targets and must not specify a geographic origin')
         if len({p.label for p in points}) != len(points):
             raise ValueError('Control/check point labels must be unique')
-        if len({p.scene for p in points}) != len(points) or len({p.enu_m for p in points}) != len(points):
+        if len({p.scene for p in points}) != len(points) or len({p.target for p in points}) != len(points):
             raise ValueError('Independent check points must not repeat control points')
-        if any(sum(v*v for v in p.enu_m) > 10_000**2 for p in points):
-            raise ValueError('Local ENU frame is limited to 10 km around its origin')
+        if any(sum(v*v for v in p.target) > 10_000**2 for p in points):
+            raise ValueError('Target frame is limited to 10 km around its origin')
         if len({o.entity_id for o in self.objects}) != len(self.objects):
             raise ValueError('Each entity may have only one scene object')
         return self

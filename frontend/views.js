@@ -451,7 +451,10 @@ export function registration() {
     ) +
     '<div class="boundary">' +
     icon('cube') +
-    '需要输入控制点、检查点和对象范围。当前显示几何范围，不生成实景三维模型。</div><div class="two-columns scene-columns"><section class="panel"><div class="panel-heading"><h2>局部三维视图</h2><label><span class="sr-only">配准快照</span><select data-control="registration">' +
+    (r?.snapshot.target_frame === 'local'
+      ? '当前为局部 XYZ 配准：坐标轴未地理标定，不能生成 GPS 位置或判断地理上下关系。'
+      : '需要输入控制点、检查点和对象范围。当前显示几何范围，不生成实景三维模型。') +
+    '</div><div class="two-columns scene-columns"><section class="panel"><div class="panel-heading"><h2>局部三维视图</h2><label><span class="sr-only">配准快照</span><select data-control="registration">' +
     options(
       regs.map((a) => [a.id, a.snapshot.scene_name]),
       r?.id,
@@ -466,7 +469,7 @@ export function registration() {
             fmt(r.computed?.fit_rmse_m) +
             '<small> m</small></strong></div><div><span>检查点 RMSE</span><strong>' +
             fmt(r.computed?.check_rmse_m) +
-            '<small> m</small></strong></div></div><div class="table-scroll"><table><thead><tr><th>点位</th><th>类别</th><th>场景坐标</th><th>ENU / m</th><th>残差 / m</th></tr></thead><tbody>' +
+            '<small> m</small></strong></div></div><div class="table-scroll"><table><thead><tr><th>点位</th><th>类别</th><th>场景坐标</th><th>目标坐标 / m</th><th>残差 / m</th></tr></thead><tbody>' +
             points
               .map(
                 (p) =>
@@ -481,13 +484,13 @@ export function registration() {
                   '</td><td>' +
                   p.scene.map(fmt).join(', ') +
                   '</td><td>' +
-                  p.enu_m.map(fmt).join(', ') +
+                  (p.local_m ?? p.enu_m).map(fmt).join(', ') +
                   '</td><td>' +
                   fmt(p.error) +
                   '</td></tr>',
               )
               .join('') +
-            '</tbody></table></div><p class="meta">点击点位聚焦。误差来自配准计算；合成控制点的零残差不代表真实测绘精度。</p>' +
+            '</tbody></table></div><p class="meta">点击点位聚焦。误差取决于对应点来源；参考变换辅助匹配的残差不代表独立测绘精度。</p>' +
             artifactReview(r)
         : empty('尚未导入配准快照'),
     ) +
@@ -506,7 +509,7 @@ export function plans(embedded = false) {
     title(
       'NETWORK ANALYSIS',
       '道路可达性',
-      '按审核路网计算路径，排除封闭、未知与通行方式不匹配的道路。',
+      '按审核路网计算路径；默认排除状态未知道路，也可明确选择仅核对地图拓扑。',
     ) +
     '<div class="route-layout"><div>' +
     (embedded ? '' : mapPanel()) +
@@ -522,7 +525,7 @@ export function plans(embedded = false) {
         entityOptions(entities()[0]?.id) +
         '</select></label><label>终点<select name="end_entity_id">' +
         entityOptions(state.selected) +
-        '</select></label></div><label>通行方式<select name="mode"><option value="walk">步行</option><option value="vehicle">车辆</option></select></label><label>查询时刻<input type="datetime-local" name="as_of" value="' +
+        '</select></label></div><label>查询依据<select name="basis"><option value="reviewed_status">已核实通行状态</option><option value="mapped_topology">仅地图拓扑 · 通行未核实</option></select></label><p class="meta">地图拓扑模式允许经过状态未知的道路，仅用于核对地图连接；明确封闭路段仍排除。</p><label>通行方式<select name="mode"><option value="walk">步行</option><option value="vehicle">车辆</option></select></label><label>查询时刻<input type="datetime-local" name="as_of" value="' +
         localTime(state.asOf) +
         '" required></label><button class="button primary full" ' +
         disabled(nets.length && !state.busy) +
@@ -530,7 +533,7 @@ export function plans(embedded = false) {
         icon('route') +
         '计算路径</button></form>' +
         (r
-          ? '<div class="route-result"><span class="eyebrow">ROUTE RESULT</span><h3>' +
+          ? '<div class="route-result">' + (r.basis === 'mapped_topology' ? '<div class="boundary">仅地图拓扑 · 通行未核实 · ' + (r.unverified_edge_ids?.length || 0) + ' 条未知路段</div>' : '') + '<span class="eyebrow">ROUTE RESULT</span><h3>' +
             (r.status === 'reachable'
               ? fmt(r.distance_m) + ' <small>米 · 路网距离</small>'
               : '当前路网不可达') +

@@ -47,6 +47,30 @@ export const activeArtifact = (kind) =>
       new Date(a.snapshot.valid_from) <= new Date(state.asOf) &&
       new Date(a.snapshot.valid_until) >= new Date(state.asOf),
   );
+// Route results name the exact reviewed snapshot, not the first available network.
+export function displayedNetwork() {
+  if (!state.route) return activeArtifact('road_network');
+  const asOf = new Date(state.route.query.as_of);
+  return state.artifacts.find(
+    (a) => a.id === state.route.network.artifact_id &&
+      a.artifact_type === 'road_network' && a.status === 'approved' &&
+      new Date(a.snapshot.valid_from) <= asOf && new Date(a.snapshot.valid_until) >= asOf,
+  );
+}
+export function roadStatus(edge) {
+  if (edge.status !== 'open') return edge.status;
+  // Match /route: supporting evidence must be approved and no later than as_of.
+  // The route API has no lower capture-time bound; the browsing view uses its slider.
+  const asOf = state.route?.query.as_of || state.asOf;
+  const hours = state.route ? Infinity : state.hours;
+  const evidence = (edge.annotation_ids || []).map((id) => state.annotations.find((a) => a.id === id));
+  if (evidence.some((a) => !a || a.status !== 'approved' ||
+      !captureWithinWindow(state.images.find((i) => i.id === a.image_id), asOf, hours))) return 'unknown';
+  return evidence.some((a) => effective(a).observation === 'obstacle_visible') ? 'blocked' : 'open';
+}
+export const roadLabel = (edge, status) => status === 'blocked' ? '封闭 ×' :
+  status === 'unknown' ? '未知' : edge.modes.includes('vehicle') ?
+    (edge.modes.includes('walk') ? '步行 / 车辆' : '仅车辆') : '仅步行';
 export const visibleAnnotations = () =>
   state.annotations.filter((a) => {
     const img = state.images.find((i) => i.id === a.image_id);

@@ -4,7 +4,9 @@ import {
   entity,
   effective,
   visibleAnnotations,
-  activeArtifact,
+  displayedNetwork,
+  roadStatus,
+  roadLabel,
   reviewedRelations,
   selectedRelationPaths,
 } from './state.js';
@@ -130,9 +132,7 @@ export function mapData() {
     cones = [],
     links = [];
   const visible = visibleAnnotations(),
-    net = state.route?.network_id
-      ? state.artifacts.find((a) => a.id === state.route.network_id)
-      : activeArtifact('road_network');
+    net = displayedNetwork();
   for (const e of entities())
     if (e.coordinates) {
       const anns = visible.filter((a) => effective(a).entity_id === e.id),
@@ -160,28 +160,22 @@ export function mapData() {
   if (net)
     for (const e of net.snapshot.edges) {
       const a = entity(e.source)?.coordinates,
-        b = entity(e.target)?.coordinates;
+        b = entity(e.target)?.coordinates,
+        status = roadStatus(e);
       if (!a || !b) continue;
       roads.push(
         line([xy(a), xy(b)], {
           id: e.id,
-          status: e.status,
+          status,
           route: !!state.route?.edges?.some((r) => r.id === e.id),
           oneway: !e.bidirectional,
           color:
-            e.status === 'blocked'
+            status === 'blocked'
               ? pal.roadBlocked
-              : e.status === 'unknown'
+              : status === 'unknown'
                 ? pal.roadUnknown
                 : pal.roadOpen,
-          label:
-            e.status === 'blocked'
-              ? '封闭 ×'
-              : e.status === 'unknown'
-                ? '未知'
-                : e.modes.includes('vehicle')
-                  ? '步行 / 车辆'
-                  : '仅步行',
+          label: roadLabel(e, status),
         }),
       );
     }

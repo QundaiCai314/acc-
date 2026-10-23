@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-23",
+  "provider": "https://api.osv.dev/v1/query",
+  "scope": "Direct vendored npm packages only; not a transitive dependency SBOM.",
+  "queries": [
+    {
+      "package": {
+        "name": "maplibre-gl",
+        "ecosystem": "npm"
+      },
+      "version": "6.4.1",
+      "response": {}
+    },
+    {
+      "package": {
+        "name": "three",
+        "ecosystem": "npm"
+      },
+      "version": "0.180.0",
+      "response": {}
+    }
+  ]
+}

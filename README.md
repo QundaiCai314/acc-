@@ -10,6 +10,7 @@
 - [三维配准、路网与复杂关系接口](docs/spatial-extensions.md)
 - [外部服务协议、实测结果与星云边界](docs/integrations.md)
 - [2026-10-22 审核报告](docs/audit-2026-10-22.md)
+- [2026-10-23 静态与动态复核：地图一致性修复、完整回归及保留边界](docs/audit-2026-10-23.md)
 - [真实海地地震照片验证：来源、模型输出与限制](docs/real-scene-validation-2026-10-23.md)
 - [真实路网与局部三维扫描验证：来源、复现与误差边界](docs/real-geometry-validation-2026-10-23.md)
 - [交付包快速启动](START-HERE.md)

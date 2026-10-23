@@ -14,7 +14,7 @@ from .evidence_time import capture_bounds, capture_label
 from .access import attributed, team_mode
 from .spatial_models import (
     Annotation, Dataset, ImageInput, ImportedProposal, NaturalAnswer, NaturalQuestion,
-    QueryIntent, Retraction, Review, SpatialAnswer, SpatialQuery,
+    Retraction, Review, SpatialAnswer, SpatialQuery,
 )
 
 

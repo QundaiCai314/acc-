@@ -156,15 +156,6 @@ class QueryIntent(StrictModel):
     max_age_hours: int | None = Field(ge=1, le=8760)
 
 
-class NaturalAnswer(StrictModel):
-    status: Literal['answered', 'clarification_needed']
-    answer: str
-    run_id: UUID
-    interpreted_query: QueryIntent
-    evidence: SpatialAnswer | None
-    clarification: str | None
-
-
 class Citation(StrictModel):
     annotation_id: UUID
     image_id: UUID
@@ -195,3 +186,12 @@ class SpatialAnswer(StrictModel):
     older_evidence_count: int = Field(ge=0)
     missing_coordinates: list[str]
     limitations: list[str]
+
+
+class NaturalAnswer(StrictModel):
+    status: Literal['answered', 'clarification_needed']
+    answer: str
+    run_id: UUID
+    interpreted_query: QueryIntent
+    evidence: SpatialAnswer | None
+    clarification: str | None

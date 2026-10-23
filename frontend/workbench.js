@@ -403,7 +403,8 @@ function intel() {
         '</b> 条观察</span><span>' +
         badge(
           state.dataset.snapshot.coordinate_basis === 'exercise' ? 'pending_review' : 'approved',
-          e.coordinates ? '来源标记：实测' : '未定位',
+          !e.coordinates ? '未定位' : state.dataset.snapshot.coordinate_basis === 'exercise'
+            ? '来源标记：演练' : '来源标记：实测',
         ) +
         '</span></div>' +
         (ann

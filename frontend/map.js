@@ -4,6 +4,9 @@ import {
   entity,
   effective,
   activeArtifact,
+  displayedNetwork,
+  roadStatus,
+  roadLabel,
   visibleAnnotations,
   reviewedRelations,
   selectedRelationPaths,
@@ -56,7 +59,7 @@ export function mapSvg() {
   };
   const selected = p(state.selected),
     center = p(state.center),
-    network = activeArtifact('road_network');
+    network = displayedNetwork();
   let body =
     '<defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#263137" stroke-width=".6"/></pattern><marker id="direction" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="m0 0 6 3-6 3" fill="#91b3ae"/></marker></defs><rect width="760" height="600" fill="#151e22"/><rect width="760" height="600" fill="url(#grid)"/>';
   if (state.layers.buffer && center)
@@ -81,11 +84,12 @@ export function mapSvg() {
       if (!a || !b) continue;
       const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       const route = state.route?.edges?.some((e) => e.id === edge.id),
+        status = roadStatus(edge),
         color = route
           ? '#74e8ba'
-          : edge.status === 'blocked'
+          : status === 'blocked'
             ? '#f18d7c'
-            : edge.status === 'unknown'
+            : status === 'unknown'
               ? '#89949a'
               : '#72a6a2';
       body +=
@@ -100,7 +104,7 @@ export function mapSvg() {
         '" stroke-width="' +
         (route ? 5 : 3) +
         '" ' +
-        (edge.status !== 'open' ? 'stroke-dasharray="7 6"' : '') +
+        (status !== 'open' ? 'stroke-dasharray="7 6"' : '') +
         ' ' +
         (!edge.bidirectional ? 'marker-mid="url(#direction)"' : '') +
         '/><text x="' +
@@ -110,13 +114,7 @@ export function mapSvg() {
         '" fill="' +
         color +
         '" font-size="10">' +
-        (edge.status === 'blocked'
-          ? '封闭'
-          : edge.status === 'unknown'
-            ? '未知'
-            : !edge.bidirectional
-              ? '单向'
-              : '') +
+        esc(roadLabel(edge, status) + (!edge.bidirectional ? ' · 单向' : '')) +
         '</text>';
     }
   if (state.layers.objects)

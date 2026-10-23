@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-23",
+  "ruff": {
+    "version": "0.14.14",
+    "scope": [
+      "app",
+      "tests",
+      "examples"
+    ],
+    "select": [
+      "E9",
+      "F"
+    ],
+    "result": "passed after cleanup"
+  },
+  "bandit": {
+    "version": "1.9.3",
+    "scope": "app",
+    "exit_code": 1,
+    "generated_at": "2026-10-23T05:50:11Z",
+    "errors": [],
+    "totals": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 3,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 1,
+      "SEVERITY.MEDIUM": 2,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 2221,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
+    "results": [
+      {
+        "code": "179                             account.user_id, account.workspace, account.credential_digest(), expires)\n180     return {'access_token': token, 'token_type': 'bearer',\n181             'expires_at': datetime.fromtimestamp(expires, timezone.utc).isoformat(),\n182             'identity': account.identity()}\n183 \n",
+        "col_offset": 35,
+        "end_col_offset": 47,
+        "filename": "app\\auth.py",
+        "issue_confidence": "MEDIUM",
+        "issue_cwe": {
+          "id": 259,
+          "link": "https://cwe.mitre.org/data/definitions/259.html"
+        },
+        "issue_severity": "LOW",
+        "issue_text": "Possible hardcoded password: 'bearer'",
+        "line_number": 180,
+        "line_range": [
+          180,
+          181,
+          182
+        ],
+        "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b105_hardcoded_password_string.html",
+        "test_id": "B105",
+        "test_name": "hardcoded_password_string"
+      },
+      {
+        "code": "94             projection = \"json_remove(body, '$.content_base64')\" if metadata else 'body'\n95             row = db.execute(f\"SELECT {projection} FROM records WHERE id = ? AND kind = ? \"\n96                              \"AND COALESCE(json_extract(body, '$.workspace_id'), 'default') = ?\",\n97                              (identifier, kind, principal.get().workspace)).fetchone()\n",
+        "col_offset": 31,
+        "end_col_offset": 38,
+        "filename": "app\\store.py",
+        "issue_confidence": "MEDIUM",
+        "issue_cwe": {
+          "id": 89,
+          "link": "https://cwe.mitre.org/data/definitions/89.html"
+        },
+        "issue_severity": "MEDIUM",
+        "issue_text": "Possible SQL injection vector through string-based query construction.",
+        "line_number": 95,
+        "line_range": [
+          95,
+          96
+        ],
+        "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b608_hardcoded_sql_expressions.html",
+        "test_id": "B608",
+        "test_name": "hardcoded_sql_expressions"
+      },
+      {
+        "code": "104             rows = db.execute(\n105                 f\"SELECT {projection} FROM records WHERE kind = ? AND (? IS NULL OR json_extract(body, '$.dataset_id') = ?) \"\n106                 \"AND COALESCE(json_extract(body, '$.workspace_id'), 'default') = ? ORDER BY rowid LIMIT ? OFFSET ?\",\n107                 (kind, dataset_id, dataset_id, principal.get().workspace, limit if limit is not None else -1, offset),\n",
+        "col_offset": 18,
+        "end_col_offset": 25,
+        "filename": "app\\store.py",
+        "issue_confidence": "MEDIUM",
+        "issue_cwe": {
+          "id": 89,
+          "link": "https://cwe.mitre.org/data/definitions/89.html"
+        },
+        "issue_severity": "MEDIUM",
+        "issue_text": "Possible SQL injection vector through string-based query construction.",
+        "line_number": 105,
+        "line_range": [
+          105,
+          106
+        ],
+        "more_info": "https://bandit.readthedocs.io/en/1.9.3/plugins/b608_hardcoded_sql_expressions.html",
+        "test_id": "B608",
+        "test_name": "hardcoded_sql_expressions"
+      }
+    ],
+    "review": [
+      {
+        "test_id": "B105",
+        "filename": "app/auth.py",
+        "line": 180,
+        "assessment": "False positive: bearer is a protocol token type, not a secret."
+      },
+      {
+        "test_id": "B608",
+        "filename": "app/store.py",
+        "lines": [
+          95,
+          105
+        ],
+        "assessment": "False positive: projection selects between two constant SQL expressions; external values use bound parameters."
+      }
+    ]
+  },
+  "local_checks": {
+    "source_files_scanned": 113,
+    "python_files_parsed": 44,
+    "secret_pattern_hits": [],
+    "backup_restore": {
+      "scope": "temporary records and decisions only; no live DB read",
+      "integrity": "ok",
+      "foreign_keys": "ok",
+      "schema": 5
+    }
+  },
+  "limits": "Pattern-based secret scan excludes ignored live data, .env and Git history. No guarantee against unknown vulnerabilities."
+}

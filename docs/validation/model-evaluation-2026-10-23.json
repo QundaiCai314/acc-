@@ -1,0 +1,24 @@
+{
+  "status": "blocked_no_human_gold",
+  "image_count": 0,
+  "question_count": 0,
+  "iou_threshold": 0.5,
+  "detection": {
+    "true_positive": 0,
+    "false_positive": 0,
+    "missed": 0,
+    "precision": null,
+    "recall": null,
+    "f1": null,
+    "cases": []
+  },
+  "answer": {
+    "unanswerable_count": 0,
+    "answerable_count": 0,
+    "correct_abstention_rate": null,
+    "false_abstention_rate": null,
+    "citation_id_precision": null,
+    "answerable_citation_coverage": null
+  },
+  "limits": "Human labels and source identity are supplied, not authenticated by this tool. Citation IDs do not prove semantic entailment. No production or same-scene acceptance implied."
+}

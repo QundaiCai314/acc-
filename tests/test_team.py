@@ -13,10 +13,11 @@ from fastapi.testclient import TestClient
 
 from app.main import create_app
 from app.spatial_models import ProposalBatch
+from app.account_config import accounts_path, edit_accounts, account_connection
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC'
 
 
 class TeamTests(unittest.TestCase):
@@ -34,7 +35,11 @@ class TeamTests(unittest.TestCase):
         self.ds = self.client.post('/spatial/datasets', json=self.dataset, headers=self.auth('contributor')).json()['id']
 
     def write_config(self):
-        self.config_path.write_text(json.dumps(self.config), encoding='utf-8')
+        if accounts_path(self.config_path).exists():
+            with edit_accounts(self.config_path) as body:
+                body.update(self.config)
+        else:
+            self.config_path.write_text(json.dumps(self.config), encoding='utf-8')
 
     def auth(self, role='viewer', workspace='default'):
         return {'Authorization': f'Bearer {workspace}-{role}'}
@@ -67,7 +72,8 @@ class TeamTests(unittest.TestCase):
         self.config['users'][0]['enabled'] = False
         self.write_config()
         self.assertEqual(self.client.get(url, headers=self.auth()).status_code, 401)
-        self.config_path.write_text('invalid', encoding='utf-8')
+        with closing(account_connection(self.config_path)) as db, db:
+            db.execute("UPDATE config SET body='invalid'")
         self.assertEqual(self.client.get(url, headers=self.auth('admin')).status_code, 503)
 
     def test_review_lease_is_atomic_scoped_and_blocks_other_reviewers(self):

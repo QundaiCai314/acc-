@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from .models import StrictModel, validate_query_time
+from .image_validation import validate_image
 
 
 Identifier = Annotated[str, Field(pattern=r'^[a-zA-Z0-9_-]{1,64}$')]
@@ -78,6 +79,7 @@ class ImageInput(StrictModel):
         signature = b'\x89PNG\r\n\x1a\n' if self.mime_type == 'image/png' else b'\xff\xd8\xff'
         if len(data) > 5_000_000 or not data.startswith(signature):
             raise ValueError('Image must match the declared PNG/JPEG type and be at most 5 MB')
+        validate_image(data, self.mime_type)
         return self
 
 

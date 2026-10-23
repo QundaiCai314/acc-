@@ -17,7 +17,7 @@ from app.spatial_models import Coordinates, QueryIntent
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYGAAAAAEAAH2FzhVAAAAAElFTkSuQmCC'
 ANNOTATION = {
     'entity_id': 'entrance-near', 'observation': 'obstacle_visible',
     'description': '测试候选记录，不是对测试占位图片的真实识别结果',
@@ -26,6 +26,15 @@ ANNOTATION = {
 
 
 class SpatialTests(unittest.TestCase):
+    def test_invalid_image_never_echoes_raw_payload(self):
+        payload = base64.b64encode(b'private-evidence-invalid').decode()
+        response = self.client.post(f'/spatial/datasets/{self.dataset_id}/images', json={
+            'name': 'broken.png', 'captured_at': '2026-10-23T00:00:00Z', 'source': 'unit test',
+            'evidence_basis': 'exercise', 'mime_type': 'image/png', 'content_base64': payload})
+        self.assertEqual(response.status_code, 422)
+        self.assertNotIn(payload, response.text)
+        self.assertNotIn('input', response.json()['detail'][0])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

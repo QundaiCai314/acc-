@@ -12,7 +12,7 @@ from pydantic import Field, SecretStr
 from starlette.concurrency import run_in_threadpool
 
 from .access import team_mode, principal, Account
-from .account_config import edit_accounts
+from .account_config import account_transaction, account_connection
 from .models import StrictModel
 from .passwords import hash_password, verify_password
 
@@ -62,7 +62,7 @@ def members(request: Request):
     if not team_mode.get():
         raise HTTPException(409, 'Account management requires team mode')
     workspace = principal.get().workspace
-    with closing(request.app.state.store.connect()) as db:
+    with closing(account_connection(request.state.access_path)) as db:
         pending = db.execute('SELECT user_id, created_at FROM registration_requests WHERE workspace = ? ORDER BY created_at',
                              (workspace,)).fetchall()
     return {'members': [{**u.identity().model_dump(), 'enabled': u.enabled}
@@ -75,16 +75,16 @@ async def manage_member(request: Request):
     change = await parse(request, MemberChange)
     actor = principal.get()
     def apply():
-        with edit_accounts(request.state.access_path) as config:
+        with account_transaction(request.state.access_path) as (config, db):
             # Recheck authorization while holding the same lock used for mutations.
             if not any(u['user_id'] == actor.user_id and u['workspace'] == actor.workspace
                        and u['enabled'] and u['role'] == 'admin' for u in config['users']):
                 raise HTTPException(403, 'Administrator role required')
             account = next((u for u in config['users'] if (u['user_id'], u['workspace']) ==
                             (change.user_id, actor.workspace)), None)
-            store = request.app.state.store
             if change.action in ('approve', 'reject'):
-                pending = store.registration(actor.workspace, change.user_id)
+                pending = db.execute('SELECT password_hash FROM registration_requests WHERE workspace=? AND user_id=?',
+                                     (actor.workspace, change.user_id)).fetchone()
                 if not pending or (account and change.action == 'approve'):
                     raise HTTPException(409, 'Registration is no longer pending')
                 if change.action == 'approve':
@@ -93,6 +93,8 @@ async def manage_member(request: Request):
                     config['users'].append(Account(user_id=change.user_id, workspace=actor.workspace,
                         role=change.role, password_hash=pending[0],
                         token_sha256=hashlib.sha256(secrets.token_bytes(32)).hexdigest()).model_dump())
+                db.execute('DELETE FROM registration_requests WHERE workspace=? AND user_id=?',
+                           (actor.workspace, change.user_id))
             else:
                 if not account:
                     raise HTTPException(404, 'Member not found')
@@ -110,8 +112,6 @@ async def manage_member(request: Request):
                     if not account['enabled']:
                         account['token_sha256'] = hashlib.sha256(secrets.token_bytes(32)).hexdigest()
                         account['reset_digest'], account['reset_expires'] = None, 0
-        if change.action in ('approve', 'reject'):
-            store.remove_registration(actor.workspace, change.user_id)
         return {'status': change.action, **({'reset_code': code, 'expires_in': 1800}
                                            if change.action == 'reset' else {})}
     return await run_in_threadpool(apply)
@@ -122,7 +122,7 @@ async def change_password(request: Request):
     details = await parse(request, PasswordChange)
     actor = principal.get()
     def apply():
-        with edit_accounts(request.state.access_path) as config:
+        with account_transaction(request.state.access_path) as (config, db):
             account = next((u for u in config['users'] if (u['user_id'], u['workspace']) ==
                             (actor.user_id, actor.workspace)), None)
             if not account or not account['enabled'] or not verify_password(
@@ -141,7 +141,7 @@ async def reset_password(request: Request):
     if not await run_in_threadpool(request.app.state.store.consume_rate, key, 5):
         raise HTTPException(429, 'Reset attempt limit reached', headers={'Retry-After': '60'})
     def apply():
-        with edit_accounts(request.state.access_path) as config:
+        with account_transaction(request.state.access_path) as (config, db):
             account = next((u for u in config['users'] if (u['user_id'], u['workspace']) ==
                             (details.user_id, details.workspace)), None)
             digest = hashlib.sha256(details.reset_code.get_secret_value().encode()).hexdigest()
@@ -196,7 +196,7 @@ async def register(request: Request):
     password_hash = await run_in_threadpool(hash_password, details.password.get_secret_value())
     def apply():
         # Hashing can overlap a CLI change or an approval; recheck the live config under its lock.
-        with edit_accounts(request.state.access_path) as config:
+        with account_transaction(request.state.access_path) as (config, db):
             if any(u['user_id'] == details.user_id and u['workspace'] == details.workspace
                    for u in config['users']):
                 raise HTTPException(409, 'Account already exists; contact the workspace administrator')
@@ -204,8 +204,8 @@ async def register(request: Request):
                        for u in config['users']):
                 raise HTTPException(409, 'Workspace is not accepting registration; contact its administrator')
             try:
-                request.app.state.store.create_registration(details.workspace, details.user_id,
-                    password_hash, datetime.now(timezone.utc).isoformat())
+                db.execute('INSERT INTO registration_requests VALUES (?, ?, ?, ?)',
+                    (details.workspace, details.user_id, password_hash, datetime.now(timezone.utc).isoformat()))
             except sqlite3.IntegrityError:
                 raise HTTPException(409, 'Registration is already awaiting approval') from None
     await run_in_threadpool(apply)

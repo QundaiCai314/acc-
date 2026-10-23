@@ -45,6 +45,7 @@ def main():
         select('scan_dataset')
         page.evaluate("location.hash='registration'")
         expect(page.locator('#scene-slot')).to_be_visible()
+        expect(page.locator('#scene-slot .three-renderer canvas')).to_be_visible()
         expect(page.locator('.scene-head')).to_contain_text('XYZ')
         expect(page.locator('.table-scroll tbody tr')).to_have_count(80)
         expect(page.locator('.table-scroll thead')).to_contain_text('目标坐标 / m')

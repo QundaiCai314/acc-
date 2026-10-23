@@ -6,7 +6,7 @@ import secrets
 from pathlib import Path
 
 from .access import AccessConfig, Account
-from .account_config import edit_accounts
+from .account_config import edit_accounts, accounts_path
 from .passwords import hash_password
 
 
@@ -20,6 +20,19 @@ def main():
     parser.add_argument('--disable', action='store_true')
     parser.add_argument('--set-password', action='store_true', help='Set/reset a password using a hidden prompt')
     args = parser.parse_args()
+    if args.disable and (args.rotate or args.set_password):
+        parser.error('--disable cannot be combined with --rotate or --set-password')
+    new_password_hash = None
+    if args.set_password:
+        # Never hold the shared account write lock while waiting for a person to type.
+        password = getpass.getpass('New password (12-256 characters): ')
+        if password != getpass.getpass('Confirm password: '):
+            parser.error('Passwords do not match; configuration unchanged')
+        try:
+            new_password_hash = hash_password(password)
+        except ValueError as exc:
+            parser.error(str(exc))
+        del password
     with edit_accounts(args.config) as body:
         config = AccessConfig.model_validate(body) if body['users'] else None
         users = config.users if config else []
@@ -28,18 +41,9 @@ def main():
             parser.error('Account exists; use --rotate, --disable or --set-password explicitly')
         if not current and args.disable:
             parser.error('Account does not exist')
-        if args.disable and (args.rotate or args.set_password):
-            parser.error('--disable cannot be combined with --rotate or --set-password')
         password_hash = current.password_hash if current else None
-        if args.set_password:
-            password = getpass.getpass('New password (12-256 characters): ')
-            if password != getpass.getpass('Confirm password: '):
-                parser.error('Passwords do not match; configuration unchanged')
-            try:
-                password_hash = hash_password(password)
-            except ValueError as exc:
-                parser.error(str(exc))
-            del password
+        if new_password_hash:
+            password_hash = new_password_hash
         token = secrets.token_urlsafe(32) if not current or args.rotate else None
         account = (current.model_copy(update={
                        'enabled': False, 'token_sha256': hashlib.sha256(secrets.token_bytes(32)).hexdigest(),
@@ -56,7 +60,7 @@ def main():
         print(f'Bearer token (shown once): {token}')
     if args.set_password:
         print('Password set; existing login sessions are invalidated')
-    print(f'Config: {args.config.resolve()}')
+    print(f'Accounts database: {accounts_path(args.config).resolve()}')
 
 
 if __name__ == '__main__':

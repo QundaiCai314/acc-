@@ -1,5 +1,4 @@
-import * as THREE from './vendor/three.module.js';
-import { OrbitControls } from './vendor/OrbitControls.js';
+let THREE, OrbitControls, sceneLibrary;
 import { state, entity } from './state.js';
 import { esc, fmt } from './ui.js';
 
@@ -122,6 +121,21 @@ export function mountScene() {
   }
   reg = state.artifacts.find((r) => r.id === slot.dataset.registration);
   if (!reg) return;
+  if (!THREE) {
+    slot.textContent = '三维组件加载中 · 控制点与残差表仍可核验';
+    sceneLibrary ||= Promise.all([import('./vendor/three.module.js'), import('./vendor/OrbitControls.js')]);
+    sceneLibrary.then(([three, orbit]) => {
+      THREE = three;
+      OrbitControls = orbit.OrbitControls;
+      if (slot.isConnected) {
+        slot.textContent = '';
+        mountScene();
+      }
+    }).catch(() => {
+      if (slot.isConnected) slot.textContent = '三维组件加载失败，请刷新重试；控制点与残差表仍可核验。';
+    });
+    return;
+  }
   const wantedKey = reg.id + '|' + (state.artTheme || 'vellum');
   if (regId !== wantedKey) {
     dispose();

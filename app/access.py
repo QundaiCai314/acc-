@@ -1,6 +1,7 @@
 """Small-team authentication with personal tokens and revocable login sessions."""
 import hashlib
 import ipaddress
+import sqlite3
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
@@ -106,9 +107,9 @@ class AccessMiddleware:
         if self.mode == 'team':
             # Reload per request so revocations apply across all workers without restarting.
             try:
-                config = await run_in_threadpool(
-                    lambda: AccessConfig.model_validate_json(self.config_path.read_text(encoding='utf-8')))
-            except (OSError, ValueError):
+                from .account_config import read_accounts
+                config = await run_in_threadpool(read_accounts, self.config_path)
+            except (OSError, ValueError, sqlite3.Error):
                 return await JSONResponse({'detail': 'Access configuration unavailable'}, 503)(scope, receive, send)
             store = scope['app'].state.store
             scope['state']['access_config'] = config

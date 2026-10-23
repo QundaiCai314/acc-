@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
@@ -15,7 +16,8 @@ from .store import Store, ReviewLeaseConflict
 from .spatial import router as spatial_router
 from .geometry import router as geometry_router
 from .integrations import router as integrations_router
-from .access import AccessConfig, AccessMiddleware, authorize, principal
+from .access import AccessMiddleware, authorize, principal
+from .account_config import accounts_path, initialize_accounts, read_accounts
 from .auth import router as auth_router
 from .settings import ConfigurationError
 
@@ -27,9 +29,12 @@ def create_app(db_path: Path | None = None, *, mode: str | None = None, access_c
     access_config = access_config or Path(os.getenv('DISASTER_ACCESS_CONFIG', 'data/access.json'))
     @asynccontextmanager
     async def lifespan(app):
-        if mode == 'team':
-            AccessConfig.model_validate_json(access_config.read_text(encoding='utf-8'))
         app.state.store = Store(db_path or Path(os.getenv('DISASTER_DB_PATH', 'data/disaster.db')))
+        if mode == 'team':
+            if not accounts_path(access_config).exists() and not access_config.exists():
+                raise FileNotFoundError('Team accounts database or migration seed required')
+            initialize_accounts(access_config, app.state.store)
+            read_accounts(access_config)
         yield
 
     app = FastAPI(title='AI Disaster Commander — Spatial RAG', version='0.3.0', lifespan=lifespan,
@@ -45,6 +50,13 @@ def create_app(db_path: Path | None = None, *, mode: str | None = None, access_c
     app.include_router(geometry_router)
     app.include_router(integrations_router)
     app.include_router(auth_router)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request, exc):
+        # Preserve useful field locations without reflecting images, credentials or raw bodies.
+        return JSONResponse({'detail': [
+            {'loc': error['loc'], 'msg': error['msg'], 'type': error['type']}
+            for error in exc.errors()]}, status_code=422)
 
     @app.exception_handler(ConfigurationError)
     async def invalid_provider_config(request, exc):

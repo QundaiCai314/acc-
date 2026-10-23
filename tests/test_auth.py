@@ -9,6 +9,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.passwords import hash_password
+from app.account_config import edit_accounts, read_accounts, accounts_path
 
 
 class LoginTests(unittest.TestCase):
@@ -27,7 +28,11 @@ class LoginTests(unittest.TestCase):
         self.client = self.enterContext(TestClient(self.app()))
 
     def write_config(self):
-        self.config.write_text(json.dumps({'users': self.users}), encoding='utf-8')
+        if accounts_path(self.config).exists():
+            with edit_accounts(self.config) as body:
+                body['users'] = self.users
+        else:
+            self.config.write_text(json.dumps({'users': self.users}), encoding='utf-8')
 
     def app(self):
         return create_app(self.folder / 'auth.db', mode='team', access_config=self.config)
@@ -110,7 +115,7 @@ class LoginTests(unittest.TestCase):
         with (patch('sys.argv', ['manage', '--config', str(self.config), '--user', 'reader', '--set-password']),
               patch('app.manage.getpass.getpass', return_value=self.password), patch('builtins.print')):
             main()
-        account = next(u for u in json.loads(self.config.read_text())['users'] if u['workspace'] == 'default')
+        account = next(u.model_dump() for u in read_accounts(self.config).users if u.workspace == 'default')
         self.assertEqual(account['role'], original['role'])
         self.assertEqual(account['token_sha256'], original['token_sha256'])
         self.assertNotEqual(account['password_hash'], original['password_hash'])

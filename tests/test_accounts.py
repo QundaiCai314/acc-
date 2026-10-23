@@ -9,6 +9,8 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from app.main import create_app
 from app.passwords import hash_password
+from app.account_config import read_accounts, edit_accounts, account_transaction, account_connection
+from contextlib import closing
 
 
 class AccountFlowTests(unittest.TestCase):
@@ -84,9 +86,8 @@ class AccountFlowTests(unittest.TestCase):
         self.assertEqual(self.client.get('/auth/me', headers=headers).status_code, 401)
         self.login('reader')
         code = self.manage('reset', user='reader').json()['reset_code']
-        body = json.loads(self.config.read_text())
-        body['users'][2]['reset_expires'] = 1
-        self.config.write_text(json.dumps(body))
+        with edit_accounts(self.config) as body:
+            body['users'][2]['reset_expires'] = 1
         self.assertEqual(self.client.post('/auth/reset-password', json={**payload, 'reset_code': code}).status_code, 400)
 
     def test_concurrent_approvals_and_rejection(self):
@@ -95,7 +96,7 @@ class AccountFlowTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=2) as executor:
             results = list(executor.map(lambda user: self.manage('approve', user).status_code, ['one', 'two']))
         self.assertEqual(results, [200, 200])
-        self.assertEqual(len(json.loads(self.config.read_text())['users']), 5)
+        self.assertEqual(len(read_accounts(self.config).users), 5)
         self.assertEqual(self.register('three').status_code, 202)
         self.assertEqual(self.manage('reject', 'three').status_code, 200)
         self.assertFalse(self.client.get('/auth/members', headers=self.admin).json()['pending'])
@@ -130,21 +131,21 @@ class AccountFlowTests(unittest.TestCase):
 
     def test_full_account_capacity_preserves_pending_registration(self):
         self.assertEqual(self.register().status_code, 202)
-        body = json.loads(self.config.read_text())
-        for i in range(997):
-            body['users'].append({**body['users'][2], 'user_id': f'fill{i}',
-                'token_sha256': hashlib.sha256(f'fill{i}'.encode()).hexdigest()})
-        self.config.write_text(json.dumps(body))
+        with edit_accounts(self.config) as body:
+            for i in range(997):
+                body['users'].append({**body['users'][2], 'user_id': f'fill{i}',
+                    'token_sha256': hashlib.sha256(f'fill{i}'.encode()).hexdigest()})
         self.assertEqual(self.manage('approve').status_code, 409)
-        self.assertEqual(len(json.loads(self.config.read_text())['users']), 1000)
-        self.assertIsNotNone(self.app.state.store.registration('default', 'new'))
+        self.assertEqual(len(read_accounts(self.config).users), 1000)
+        self.assertIsNotNone(self.pending('new'))
 
     def test_stale_pending_registration_can_be_rejected_after_interrupted_approval(self):
-        self.app.state.store.create_registration('default', 'reader',
-            hash_password(self.password), '2026-10-22T00:00:00Z')
+        with account_transaction(self.config) as (body, db):
+            db.execute('INSERT INTO registration_requests VALUES (?, ?, ?, ?)',
+                       ('default', 'reader', hash_password(self.password), '2026-10-22T00:00:00Z'))
         self.assertEqual(self.manage('approve', 'reader').status_code, 409)
         self.assertEqual(self.manage('reject', 'reader').status_code, 200)
-        self.assertIsNone(self.app.state.store.registration('default', 'reader'))
+        self.assertIsNone(self.pending('reader'))
         self.login('reader')
 
     def test_registration_rechecks_accounts_after_password_hashing(self):
@@ -157,4 +158,33 @@ class AccountFlowTests(unittest.TestCase):
             return digest
         with patch('app.auth.hash_password', side_effect=concurrent_create):
             self.assertEqual(self.register().status_code, 409)
-        self.assertIsNone(self.app.state.store.registration('default', 'new'))
+        self.assertIsNone(self.pending('new'))
+
+    def pending(self, user):
+        with closing(account_connection(self.config)) as db:
+            return db.execute('SELECT password_hash FROM registration_requests WHERE workspace=? AND user_id=?',
+                              ('default', user)).fetchone()
+
+    def test_approval_rolls_back_both_account_and_pending_on_write_failure(self):
+        self.assertEqual(self.register().status_code, 202)
+        # Fail the config write AFTER the pending row has been deleted in the transaction.
+        with closing(account_connection(self.config)) as db, db:
+            db.execute("CREATE TRIGGER fail_config BEFORE UPDATE ON config BEGIN SELECT RAISE(ABORT, 'injected'); END")
+        import sqlite3
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.manage('approve')
+        self.assertIsNotNone(self.pending('new'))
+        self.assertNotIn('new', [u.user_id for u in read_accounts(self.config).users])
+        with closing(account_connection(self.config)) as db, db:
+            db.execute('DROP TRIGGER fail_config')
+        self.assertEqual(self.manage('approve').status_code, 200)
+        self.assertIsNone(self.pending('new'))
+        self.login()
+
+    def test_same_registration_concurrent_approval_has_exactly_one_winner(self):
+        self.assertEqual(self.register().status_code, 202)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: self.manage('approve').status_code, range(2)))
+        self.assertEqual(sorted(results), [200, 409])
+        self.assertIsNone(self.pending('new'))
+        self.assertEqual(sum(u.user_id == 'new' for u in read_accounts(self.config).users), 1)

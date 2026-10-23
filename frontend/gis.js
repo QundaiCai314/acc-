@@ -12,7 +12,7 @@ import {
 } from './state.js';
 import { mapSvg } from './map.js';
 import { captureWithinWindow } from './capture-time.js';
-import * as maplibregl from './vendor/maplibre-gl.mjs';
+let maplibregl, mapLibrary;
 
 let map,
   element,
@@ -344,11 +344,28 @@ function setup() {
 export function mountMap() {
   const slot = document.querySelector('#gis-slot');
   if (!slot) return;
+  if (!maplibregl) {
+    slot.innerHTML = mapSvg();
+    const status = document.querySelector('#basemap-status');
+    if (status) status.textContent = '地图组件加载中 · 坐标概览可用';
+    mapLibrary ||= import('./vendor/maplibre-gl.mjs');
+    mapLibrary.then((library) => {
+      maplibregl = library;
+      if (slot.isConnected) {
+        if (status) status.textContent = 'Esri 参考底图 · 非实时灾情 · 现场证据另行上传';
+        mountMap();
+      }
+    }).catch(() => {
+      if (!slot.isConnected) return;
+      if (status) status.textContent = '地图组件加载失败 · 坐标概览可用，请刷新重试';
+    });
+    return;
+  }
   if (!map) {
     element = document.createElement('div');
     element.className = 'gis-renderer';
     element.setAttribute('aria-label', '交互地图，可拖动平移、滚轮缩放，左侧列表支持键盘选择');
-    slot.append(element);
+    slot.replaceChildren(element);
     try {
       map = new maplibregl.Map({
         container: element,
@@ -400,7 +417,7 @@ export function mountMap() {
       if (status) status.textContent = 'WebGL 不可用 · 已切换坐标概览';
     }
   } else {
-    slot.append(element);
+    slot.replaceChildren(element);
     map.resize();
     updateMap();
   }

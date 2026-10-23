@@ -49,6 +49,8 @@ $env:DISASTER_CORS_ORIGINS = 'http://127.0.0.1:8080'
 ## 核对与维护
 
 - [最新静态与动态审核报告及未验证范围](docs/audit-2026-10-23.md)
+- [后续修正与账号库升级说明](docs/remediation-2026-10-23.md)
+- [主线验收与模型评估方法](docs/model-and-scene-acceptance.md)
 - [前端启动、交互与浏览器验证](frontend/README.md)
 - [三维、路网和复杂关系的边界](docs/spatial-extensions.md)
 

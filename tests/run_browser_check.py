@@ -32,6 +32,8 @@ if __name__ == '__main__':
             result = subprocess.run([sys.executable, 'tests/real_data_browser_check.py'], cwd=root)
         if result.returncode == 0:
             result = subprocess.run([sys.executable, 'tests/map_consistency_check.py'], cwd=root)
+        if result.returncode == 0:
+            result = subprocess.run([sys.executable, 'tests/startup_browser_check.py'], cwd=root)
         raise SystemExit(result.returncode)
     finally:
         server.terminate()

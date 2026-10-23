@@ -11,6 +11,8 @@ with sync_playwright() as p:
     page.goto('http://127.0.0.1:8080/#command')
     page.wait_for_load_state('networkidle')
     expect(page.locator('.maplibregl-canvas')).to_be_visible()
+    expect(page.locator('#gis-slot > svg')).to_have_count(0)
+    expect(page.locator('#basemap-status')).not_to_contain_text('地图组件加载中')
     expect(page.locator('.geo-label')).to_have_count(0)
     page.evaluate('''async () => {
         const gl = await import('./vendor/maplibre-gl.mjs');

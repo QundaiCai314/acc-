@@ -54,6 +54,36 @@ def main():
                         violations.append({'theme': theme, 'route': route, 'violations': found})
                 if route in ('command', 'review', 'registration'):
                     page.screenshot(path=str(output / f'atlas-{theme}-{route}.png'))
+            # Exercise both an empty object and a populated evidence drawer. The
+            # default closed drawer otherwise hides legacy color regressions from axe.
+            page.goto('http://127.0.0.1:8080/#command')
+            page.wait_for_load_state('networkidle')
+            for selected in ('building-a', 'east'):
+                page.evaluate("""async selected => {
+                    const {state} = await import('./state.js');
+                    state.selected = selected;
+                    state.showIntel = true;
+                    const ann = state.annotations.find(a => a.id === 'ann-east');
+                    const img = state.images.find(i => i.id === ann.image_id);
+                    state.answer = selected === 'east' ? {answer:'UI-only fixture [1]',
+                        evidence:{citations:[{annotation:ann.annotation, annotation_id:ann.id,
+                            image_id:img.id, entity_id:selected, entity_name:'UI-only fixture',
+                            captured_at:img.captured_at, source:img.source,
+                            reviewer:'fixture', evidence_basis:'exercise'}]}} : null;
+                    window.dispatchEvent(new Event('hashchange'));
+                }""", selected)
+                drawer = page.locator('[data-window=intel]')
+                expect(drawer.locator('.object-summary h2')).to_be_visible()
+                drawer.locator('.intel-scroll').focus()
+                expect(drawer.locator('.intel-scroll')).to_be_focused()
+                if args.axe:
+                    page.add_script_tag(path=str(args.axe))
+                    found = page.evaluate("async () => (await axe.run(document.querySelector('[data-window=intel]'), {runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa']}})).violations")
+                    if found:
+                        violations.append({'theme': theme, 'route': 'intel-' + selected, 'violations': found})
+            page.screenshot(path=str(output / f'atlas-{theme}-intel.png'))
+            page.locator('.map-tool-dock [data-action=toggle-intel]').click()
+            page.evaluate("async () => { (await import('./state.js')).state.answer = null; }")
             for width in (320, 768, 1024, 1440):
                 page.set_viewport_size({'width': width, 'height': 1000})
                 page.goto('http://127.0.0.1:8080/#login')

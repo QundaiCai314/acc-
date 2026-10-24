@@ -1315,6 +1315,68 @@ pre {
 }
 
 /* Integration: inherited tactical surfaces and compact viewport layouts. */
+.v2 .float-window .intel {
+  background: var(--surface);
+  color: var(--text);
+}
+.v2 .intel :is(.intel-tabs, .source-health, .evidence-photo) {
+  border-color: var(--line);
+}
+.v2 .intel :is(.intel-tabs, .object-coordinates, .object-summary .eyebrow, .confidence, .source-health p) {
+  color: var(--muted);
+}
+.v2 .intel :is(.intel-tabs strong, .answer-heading) {
+  color: var(--cobalt);
+  border-color: var(--cobalt);
+}
+.v2 .intel :is(.object-stats b, .evidence-description p, .source-health > span, .citation p) {
+  color: var(--text);
+}
+.v2 .intel .evidence-description .button {
+  background: var(--surface-alt);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.v2 .intel #ask-form.dock-question {
+  background: var(--surface-alt);
+  border-color: var(--line);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.v2 .intel #ask-form > label {
+  color: var(--text);
+}
+.v2 .intel #ask-form small {
+  color: var(--muted);
+}
+.v2 .intel #ask-form :is(textarea, select) {
+  background: var(--input-bg);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+.v2 .intel #ask-form textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.v2 .intel .answer > p {
+  background: var(--surface-alt);
+  border-color: var(--cobalt);
+  color: var(--text);
+}
+.v2 .intel .citation {
+  background: var(--surface-alt);
+  border-color: var(--line);
+}
+.v2 .intel .citation.active {
+  border-color: var(--cobalt);
+  box-shadow: 0 0 0 1px var(--cobalt);
+}
+.v2 .intel :is(.inline-citation, .citation-title button) {
+  color: var(--cobalt);
+}
+.v2 .intel .inline-citation {
+  background: var(--cobalt-bg);
+}
 .upload-zone,
 .condition-row {
   background: var(--surface-alt);

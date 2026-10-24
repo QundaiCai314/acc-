@@ -381,7 +381,7 @@ function intel() {
     icon('chat') +
     '现场情报</h2><button data-action="toggle-intel" aria-label="收起情报抽屉">' +
     icon('close') +
-    '</button></div><div class="intel-scroll"><div class="intel-tabs"><strong>查证结果</strong><span>证据与来源</span></div>' +
+    '</button></div><div class="intel-scroll" tabindex="0" role="region" aria-label="现场证据与查询结果"><div class="intel-tabs"><strong>查证结果</strong><span>证据与来源</span></div>' +
     answerView() +
     (e
       ? '<section class="object-summary"><div class="eyebrow">' +
